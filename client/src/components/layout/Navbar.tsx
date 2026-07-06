@@ -1,8 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
+import { Button } from "@/components/ui/Button";
 import { navLinks } from "@/constants/site";
+import { useAuth } from "@/hooks/useAuth";
 
 export function Navbar() {
+  const { user, isAuthenticated } = useAuth();
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-ink">
       <Container className="flex h-[72px] items-center justify-between gap-6">
@@ -41,19 +47,25 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-5">
+        <div className="flex shrink-0 items-center gap-4">
+          <Button href="/sell-with-us" variant="outline-light" className="hidden h-9 px-5 sm:inline-flex">
+            Sell With Us
+          </Button>
+
           <Link
-            href="/login"
-            className="hidden font-[family-name:var(--font-barlow)] text-sm font-medium uppercase tracking-wide text-paper sm:inline-block"
+            href={isAuthenticated ? "/dashboard" : "/login"}
+            aria-label={isAuthenticated ? "Go to dashboard" : "Sign in"}
+            className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/5 text-paper transition-colors hover:border-tan"
           >
-            Sign In
+            {isAuthenticated ? (
+              <span className="font-[family-name:var(--font-barlow-condensed)] text-sm font-bold uppercase text-tan">
+                {user?.name?.charAt(0)}
+              </span>
+            ) : (
+              <UserIcon className="h-[18px] w-[18px]" />
+            )}
           </Link>
-          <Link
-            href="/register"
-            className="inline-flex h-9 items-center justify-center rounded-md bg-tan px-5 font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase tracking-wide text-ink-on-sand transition-colors hover:bg-tan/80"
-          >
-            Register
-          </Link>
+
           <button
             type="button"
             aria-label="Open menu"
@@ -72,6 +84,15 @@ function SearchIcon({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
       <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
       <path d="m20 20-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function UserIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

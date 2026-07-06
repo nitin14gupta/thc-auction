@@ -7,24 +7,21 @@ import { AuctionGrid } from "@/components/sections/AuctionGrid";
 import { HowItWorks } from "@/components/sections/HowItWorks";
 import { MarketMovesTicker } from "@/components/sections/MarketMovesTicker";
 import { Newsletter } from "@/components/sections/Newsletter";
-import { AuthGate } from "@/components/auth/AuthGate";
 
 export default function Home() {
   return (
-    <AuthGate>
-      <div className="flex min-h-screen flex-col bg-ink">
-        <Navbar />
-        <main className="flex-1">
-          <Hero />
-          <StatsStrip />
-          <FilterBar />
-          <AuctionGrid />
-          <HowItWorks />
-          <MarketMovesTicker />
-          <Newsletter />
-        </main>
-        <Footer />
-      </div>
-    </AuthGate>
+    <div className="flex min-h-screen flex-col bg-ink">
+      <Navbar />
+      <main className="flex-1">
+        <Hero />
+        <StatsStrip />
+        <FilterBar />
+        <AuctionGrid />
+        <HowItWorks />
+        <MarketMovesTicker />
+        <Newsletter />
+      </main>
+      <Footer />
+    </div>
   );
 }
