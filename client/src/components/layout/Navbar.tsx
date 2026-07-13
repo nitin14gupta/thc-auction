@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
@@ -55,9 +56,11 @@ export function Navbar() {
           <Link
             href={isAuthenticated ? "/dashboard" : "/login"}
             aria-label={isAuthenticated ? "Go to dashboard" : "Sign in"}
-            className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/5 text-paper transition-colors hover:border-tan"
+            className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/5 text-paper transition-colors hover:border-tan"
           >
-            {isAuthenticated ? (
+            {isAuthenticated && user?.avatar_url ? (
+              <Image src={user.avatar_url} alt={user.name} fill className="object-cover" sizes="36px" unoptimized />
+            ) : isAuthenticated ? (
               <span className="font-[family-name:var(--font-barlow-condensed)] text-sm font-bold uppercase text-tan">
                 {user?.name?.charAt(0)}
               </span>

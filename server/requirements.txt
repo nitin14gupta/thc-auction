@@ -6,3 +6,5 @@ supabase
 bcrypt
 PyJWT
 python-multipart
+boto3
+Pillow

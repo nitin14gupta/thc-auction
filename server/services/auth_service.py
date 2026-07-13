@@ -140,6 +140,20 @@ def get_current_user(access_token: str) -> dict:
     return user
 
 
+def update_avatar(user_id: str, raw_bytes: bytes) -> dict:
+    from utils.image_utils import convert_to_webp
+    from utils.r2_client import r2_client
+
+    webp_bytes = convert_to_webp(raw_bytes)
+    upload_result = r2_client.upload_file(webp_bytes, f"{user_id}.webp", folder="avatars")
+
+    db = get_supabase_client()
+    db.table("users").update({"avatar_url": upload_result["url"], "updated_at": _now().isoformat()}).eq(
+        "id", user_id
+    ).execute()
+    return get_user_by_id(user_id)
+
+
 def request_password_reset(email: str) -> None:
     user = get_user_by_email(email)
     if not user:

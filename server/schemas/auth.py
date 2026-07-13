@@ -30,6 +30,7 @@ class UserOut(BaseModel):
     id: str
     name: str
     email: EmailStr
+    avatar_url: str | None = None
 
 
 class AccessTokenResponse(BaseModel):

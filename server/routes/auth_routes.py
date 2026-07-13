@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from core.config import settings
@@ -14,6 +14,7 @@ from schemas.auth import (
     VerifyOtpResponse,
 )
 from services import auth_service
+from utils.image_utils import MAX_UPLOAD_BYTES
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -39,7 +40,7 @@ def _access_token_response(access_token: str, user: dict) -> AccessTokenResponse
     return AccessTokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=UserOut(id=user["id"], name=user["name"], email=user["email"]),
+        user=UserOut(id=user["id"], name=user["name"], email=user["email"], avatar_url=user.get("avatar_url")),
     )
 
 
@@ -89,7 +90,22 @@ def logout(request: Request, response: Response):
 
 @router.get("/me", response_model=UserOut)
 def me(current_user: dict = Depends(get_current_user)):
-    return UserOut(id=current_user["id"], name=current_user["name"], email=current_user["email"])
+    return UserOut(
+        id=current_user["id"],
+        name=current_user["name"],
+        email=current_user["email"],
+        avatar_url=current_user.get("avatar_url"),
+    )
+
+
+@router.patch("/me/avatar", response_model=UserOut)
+async def update_avatar(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+    raw = await file.read()
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Image exceeds the 8MB limit.")
+
+    user = auth_service.update_avatar(current_user["id"], raw)
+    return UserOut(id=user["id"], name=user["name"], email=user["email"], avatar_url=user.get("avatar_url"))
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
