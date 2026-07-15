@@ -7,16 +7,22 @@ import { CategoryFilter } from "@/components/create-listing/CategoryFilter";
 import { ProductSearchResultsList } from "@/components/create-listing/ProductSearchResultsList";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useListingWizard } from "@/hooks/useListingWizard";
+import { useToast } from "@/hooks/useToast";
 import type { ProductSearchResult } from "@/types/product";
 
 export default function ProductStepPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const { query, setQuery, category, setCategory, results, isLoading, error, isDefaultSet } = useProductSearch();
   const { selectProduct, state } = useListingWizard();
 
   async function handleSelect(product: ProductSearchResult) {
-    await selectProduct(product);
-    router.push("/dashboard/create-listing/details");
+    try {
+      await selectProduct(product);
+      router.push("/dashboard/create-listing/details");
+    } catch {
+      toast("Couldn't start this listing. Try again.", "error");
+    }
   }
 
   return (

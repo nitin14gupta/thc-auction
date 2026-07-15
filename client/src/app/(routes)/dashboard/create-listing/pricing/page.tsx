@@ -7,9 +7,12 @@ import { StepCardSkeleton } from "@/components/create-listing/StepCardSkeleton";
 import { BidPriceOption } from "@/components/create-listing/BidPriceOption";
 import { WizardFooterActions } from "@/components/create-listing/WizardFooterActions";
 import { useListingWizard } from "@/hooks/useListingWizard";
+import { useToast } from "@/hooks/useToast";
+import { isoToLocalInputValue, localInputValueToIso } from "@/utils/dateUtils";
 
 export default function PricingStepPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const { state, persistStep, setFields } = useListingWizard();
 
   useEffect(() => {
@@ -21,13 +24,29 @@ export default function PricingStepPage() {
   if (state.isHydrating || !state.listingId) return <StepCardSkeleton />;
 
   async function handleSaveDraft() {
-    await persistStep({ bid_price: state.bidPrice ?? undefined });
-    router.push("/dashboard/my-listings");
+    try {
+      await persistStep({
+        bid_price: state.bidPrice ?? undefined,
+        auction_start_at: state.auctionStartAt ?? undefined,
+      });
+      toast("Saved as draft.", "success");
+      router.push("/dashboard/my-listings");
+    } catch {
+      toast("Couldn't save your changes. Try again.", "error");
+    }
   }
 
   async function handleNext() {
-    await persistStep({ bid_price: state.bidPrice ?? undefined, current_step: 6 });
-    router.push("/dashboard/create-listing/review");
+    try {
+      await persistStep({
+        bid_price: state.bidPrice ?? undefined,
+        auction_start_at: state.auctionStartAt ?? undefined,
+        current_step: 6,
+      });
+      router.push("/dashboard/create-listing/review");
+    } catch {
+      toast("Couldn't save your changes. Try again.", "error");
+    }
   }
 
   return (
@@ -57,6 +76,21 @@ export default function PricingStepPage() {
             />
           ))}
         </div>
+
+        <div className="mt-6 border-t border-ink-on-sand/10 pt-5">
+          <p className="font-[family-name:var(--font-barlow)] text-sm font-medium text-ink-on-sand">
+            Auction start time
+          </p>
+          <p className="mb-2 font-[family-name:var(--font-barlow)] text-xs text-muted-on-sand">
+            Pick a date and time in your local time zone — bidders will see it converted to theirs.
+          </p>
+          <input
+            type="datetime-local"
+            value={isoToLocalInputValue(state.auctionStartAt)}
+            onChange={(e) => setFields({ auctionStartAt: localInputValueToIso(e.target.value) })}
+            className="h-10 rounded-md border border-ink-on-sand/20 bg-white/60 px-3 font-[family-name:var(--font-barlow)] text-sm text-ink-on-sand focus:outline-none"
+          />
+        </div>
       </StepCard>
 
       <WizardFooterActions
@@ -64,7 +98,7 @@ export default function PricingStepPage() {
         onNext={handleNext}
         nextLabel="Review"
         isSaving={state.isSaving}
-        nextDisabled={!state.bidPrice}
+        nextDisabled={!state.bidPrice || !state.auctionStartAt}
       />
     </div>
   );

@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/auth/FormError";
 import { FormField } from "@/components/auth/FormField";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/types/auth";
 
 export function RegisterForm() {
   const router = useRouter();
   const { register } = useAuth();
+  const { toast } = useToast();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,9 +38,12 @@ export function RegisterForm() {
     setIsSubmitting(true);
     try {
       await register(name, email, password);
+      toast("Account created. Welcome to HYPE.", "success");
       router.push("/");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+      setError(message);
+      toast(message, "error");
     } finally {
       setIsSubmitting(false);
     }

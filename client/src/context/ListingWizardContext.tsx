@@ -27,6 +27,7 @@ type WizardState = {
   photos: ListingPhoto[];
   basePrice: number | null;
   bidPrice: number | null;
+  auctionStartAt: string | null;
   suggestedBidPrices: SuggestedBidPrice[];
   currentStep: number;
   isHydrating: boolean;
@@ -46,6 +47,7 @@ const initialState: WizardState = {
   photos: [],
   basePrice: null,
   bidPrice: null,
+  auctionStartAt: null,
   suggestedBidPrices: [],
   currentStep: 1,
   isHydrating: true,
@@ -78,6 +80,7 @@ function reducer(state: WizardState, action: Action): WizardState {
         photos: action.listing.photos,
         basePrice: action.listing.base_price,
         bidPrice: action.listing.bid_price,
+        auctionStartAt: action.listing.auction_start_at,
         suggestedBidPrices: action.listing.suggested_bid_prices,
         currentStep: action.listing.current_step,
       };

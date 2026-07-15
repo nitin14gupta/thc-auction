@@ -1,16 +1,21 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { uploadAvatar } from "@/api/userApi";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 
 const MAX_AVATAR_BYTES = 8 * 1024 * 1024;
 
 export default function AccountSettingsPage() {
-  const { user, authFetch, updateUser } = useAuth();
+  const { user, authFetch, updateUser, logout } = useAuth();
+  const { toast } = useToast();
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -19,6 +24,7 @@ export default function AccountSettingsPage() {
     if (!file) return;
     if (file.size > MAX_AVATAR_BYTES) {
       setError("Image exceeds the 8MB limit.");
+      toast("Image exceeds the 8MB limit.", "error");
       return;
     }
 
@@ -27,10 +33,24 @@ export default function AccountSettingsPage() {
     try {
       const updatedUser = await uploadAvatar(authFetch, file);
       updateUser(updatedUser);
+      toast("Profile photo updated.", "success");
     } catch {
       setError("Couldn't upload your photo. Try again.");
+      toast("Couldn't upload your photo. Try again.", "error");
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      toast("Signed out.", "success");
+      router.push("/");
+    } catch {
+      toast("Couldn't sign out. Try again.", "error");
+      setIsLoggingOut(false);
     }
   }
 
@@ -85,6 +105,15 @@ export default function AccountSettingsPage() {
           Email
         </p>
         <p className="mt-1 font-[family-name:var(--font-barlow)] text-sm text-ink-on-sand">{user?.email}</p>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="mt-6 rounded-md border border-red-urgent/30 px-4 py-2 font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase text-red-urgent hover:bg-red-urgent/10 disabled:opacity-50"
+        >
+          {isLoggingOut ? "Signing out..." : "Log out"}
+        </button>
       </div>
     </div>
   );

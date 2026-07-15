@@ -7,11 +7,13 @@ import { StepCardSkeleton } from "@/components/create-listing/StepCardSkeleton";
 import { WhyItMattersCallout } from "@/components/create-listing/WhyItMattersCallout";
 import { WizardFooterActions } from "@/components/create-listing/WizardFooterActions";
 import { useListingWizard } from "@/hooks/useListingWizard";
+import { useToast } from "@/hooks/useToast";
 import { guessColorwayFromName } from "@/utils/productHeuristics";
 import type { Product } from "@/types/product";
 
 export default function DetailsStepPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const { state, persistStep, setFields } = useListingWizard();
   const didPrefill = useRef(false);
 
@@ -42,24 +44,33 @@ export default function DetailsStepPage() {
   const canProceed = !requiresSize || Boolean(state.variantSize);
 
   async function handleSaveDraft() {
-    await persistStep({
-      variant_size: state.variantSize || undefined,
-      colorway: state.colorway || undefined,
-      year_of_release: state.yearOfRelease || undefined,
-      style_sku: state.styleSku || undefined,
-    });
-    router.push("/dashboard/my-listings");
+    try {
+      await persistStep({
+        variant_size: state.variantSize || undefined,
+        colorway: state.colorway || undefined,
+        year_of_release: state.yearOfRelease || undefined,
+        style_sku: state.styleSku || undefined,
+      });
+      toast("Saved as draft.", "success");
+      router.push("/dashboard/my-listings");
+    } catch {
+      toast("Couldn't save your changes. Try again.", "error");
+    }
   }
 
   async function handleNext() {
-    await persistStep({
-      variant_size: state.variantSize || undefined,
-      colorway: state.colorway || undefined,
-      year_of_release: state.yearOfRelease || undefined,
-      style_sku: state.styleSku || undefined,
-      current_step: 3,
-    });
-    router.push("/dashboard/create-listing/condition");
+    try {
+      await persistStep({
+        variant_size: state.variantSize || undefined,
+        colorway: state.colorway || undefined,
+        year_of_release: state.yearOfRelease || undefined,
+        style_sku: state.styleSku || undefined,
+        current_step: 3,
+      });
+      router.push("/dashboard/create-listing/condition");
+    } catch {
+      toast("Couldn't save your changes. Try again.", "error");
+    }
   }
 
   return (

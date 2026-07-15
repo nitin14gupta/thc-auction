@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/auth/FormError";
 import { FormField } from "@/components/auth/FormField";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/types/auth";
 
 export function LoginForm() {
   const router = useRouter();
   const { login } = useAuth();
+  const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,9 +26,12 @@ export function LoginForm() {
     setIsSubmitting(true);
     try {
       await login(email, password);
+      toast("Welcome back!", "success");
       router.push("/");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+      setError(message);
+      toast(message, "error");
     } finally {
       setIsSubmitting(false);
     }

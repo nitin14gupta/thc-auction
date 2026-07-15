@@ -3,22 +3,33 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getListing, updateListing } from "@/api/listingApi";
+import { deleteListing, getListing, updateListing } from "@/api/listingApi";
 import { getProduct } from "@/api/productApi";
 import { ListingDetailSkeleton } from "@/components/dashboard/ListingDetailSkeleton";
 import { useAuth } from "@/hooks/useAuth";
-import type { Listing } from "@/types/listing";
+import { useToast } from "@/hooks/useToast";
+import { formatLocalDateTime } from "@/utils/dateUtils";
+import type { Listing, ListingStatus } from "@/types/listing";
 import type { Product } from "@/types/product";
+
+const STATUS_LABELS: Record<ListingStatus, string> = {
+  draft: "Draft",
+  pending_review: "Pending review",
+  accepted: "Accepted",
+  rejected: "Rejected",
+};
 
 export default function ListingDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { authFetch } = useAuth();
+  const { toast } = useToast();
   const [listing, setListing] = useState<Listing | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [bidPriceInput, setBidPriceInput] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,10 +63,26 @@ export default function ListingDetailPage() {
       const updated = await updateListing(authFetch, params.id, { bid_price: value });
       setListing(updated);
       setMessage("Saved.");
+      toast("Bid price updated.", "success");
     } catch {
       setMessage("Couldn't save. Try again.");
+      toast("Couldn't save. Try again.", "error");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!listing) return;
+    if (!window.confirm("Delete this listing? This can't be undone.")) return;
+    setIsDeleting(true);
+    try {
+      await deleteListing(authFetch, listing.id);
+      toast("Listing deleted.", "success");
+      router.push("/dashboard/my-listings");
+    } catch {
+      toast("Couldn't delete this listing. Try again.", "error");
+      setIsDeleting(false);
     }
   }
 
@@ -92,7 +119,7 @@ export default function ListingDetailPage() {
             {product?.name ?? "Listing"}
           </h1>
           <span className="font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase tracking-wide text-gold">
-            {listing.status === "draft" ? "Draft" : "Pending review"}
+            {STATUS_LABELS[listing.status]}
           </span>
         </div>
 
@@ -104,6 +131,7 @@ export default function ListingDetailPage() {
           <Detail label="Style / SKU" value={listing.style_sku} />
           <Detail label="Condition" value={listing.condition_grade} />
           <Detail label="Photos" value={`${listing.photos.length} uploaded`} />
+          <Detail label="Auction Start" value={formatLocalDateTime(listing.auction_start_at)} />
         </div>
 
         {listing.condition_notes && (
@@ -148,15 +176,28 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        {listing.status === "draft" && (
-          <button
-            type="button"
-            onClick={() => router.push(`/dashboard/create-listing/product?listingId=${listing.id}`)}
-            className="mt-6 rounded-md border border-ink-on-sand/30 px-4 py-2 font-[family-name:var(--font-barlow)] text-sm font-semibold uppercase text-ink-on-sand hover:bg-ink-on-sand/5"
-          >
-            Continue editing in wizard
-          </button>
-        )}
+        <div className="mt-6 flex items-center gap-3">
+          {listing.status === "draft" && (
+            <button
+              type="button"
+              onClick={() => router.push(`/dashboard/create-listing/product?listingId=${listing.id}`)}
+              className="rounded-md border border-ink-on-sand/30 px-4 py-2 font-[family-name:var(--font-barlow)] text-sm font-semibold uppercase text-ink-on-sand hover:bg-ink-on-sand/5"
+            >
+              Continue editing in wizard
+            </button>
+          )}
+
+          {listing.status !== "accepted" && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="rounded-md border border-red-urgent/30 px-4 py-2 font-[family-name:var(--font-barlow)] text-sm font-semibold uppercase text-red-urgent hover:bg-red-urgent/10 disabled:opacity-50"
+            >
+              {isDeleting ? "Deleting..." : "Delete listing"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

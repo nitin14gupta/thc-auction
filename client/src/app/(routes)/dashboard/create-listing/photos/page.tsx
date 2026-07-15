@@ -9,12 +9,14 @@ import { WizardFooterActions } from "@/components/create-listing/WizardFooterAct
 import { deleteListingPhoto, reorderListingPhotos, uploadListingPhotos } from "@/api/listingApi";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingWizard } from "@/hooks/useListingWizard";
+import { useToast } from "@/hooks/useToast";
 
 const MIN_PHOTOS = 3;
 
 export default function PhotosStepPage() {
   const router = useRouter();
   const { authFetch } = useAuth();
+  const { toast } = useToast();
   const { state, setFields, persistStep } = useListingWizard();
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +36,10 @@ export default function PhotosStepPage() {
     try {
       const uploaded = await uploadListingPhotos(authFetch, state.listingId, files);
       setFields({ photos: [...state.photos, ...uploaded] });
+      toast(`${uploaded.length} photo${uploaded.length === 1 ? "" : "s"} uploaded.`, "success");
     } catch {
       setError("Couldn't upload one or more photos. Try again.");
+      toast("Couldn't upload one or more photos. Try again.", "error");
     } finally {
       setIsUploading(false);
     }
@@ -46,8 +50,10 @@ export default function PhotosStepPage() {
     setFields({ photos: state.photos.filter((p) => p.id !== photoId) });
     try {
       await deleteListingPhoto(authFetch, state.listingId, photoId);
+      toast("Photo removed.", "success");
     } catch {
       setError("Couldn't remove that photo.");
+      toast("Couldn't remove that photo.", "error");
     }
   }
 
@@ -64,17 +70,27 @@ export default function PhotosStepPage() {
       await reorderListingPhotos(authFetch, state.listingId, photoIds);
     } catch {
       setError("Couldn't save the new photo order.");
+      toast("Couldn't save the new photo order.", "error");
     }
   }
 
   async function handleSaveDraft() {
-    await persistStep({});
-    router.push("/dashboard/my-listings");
+    try {
+      await persistStep({});
+      toast("Saved as draft.", "success");
+      router.push("/dashboard/my-listings");
+    } catch {
+      toast("Couldn't save your changes. Try again.", "error");
+    }
   }
 
   async function handleNext() {
-    await persistStep({ current_step: 5 });
-    router.push("/dashboard/create-listing/pricing");
+    try {
+      await persistStep({ current_step: 5 });
+      router.push("/dashboard/create-listing/pricing");
+    } catch {
+      toast("Couldn't save your changes. Try again.", "error");
+    }
   }
 
   return (

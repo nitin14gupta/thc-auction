@@ -5,6 +5,8 @@ from schemas.listing import (
     ListingCreateRequest,
     ListingOut,
     ListingPhotoOut,
+    ListingReviewRequest,
+    ListingsPage,
     ListingUpdateRequest,
     ReorderPhotosRequest,
 )
@@ -14,14 +16,25 @@ from utils.image_utils import MAX_UPLOAD_BYTES
 router = APIRouter(prefix="/listings", tags=["listings"])
 
 
+def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    if not current_user.get("is_admin"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required.")
+    return current_user
+
+
 @router.post("", response_model=ListingOut, status_code=status.HTTP_201_CREATED)
 def create_listing(payload: ListingCreateRequest, current_user: dict = Depends(get_current_user)):
     return listing_service.create_listing(current_user["id"], payload.product_id)
 
 
-@router.get("/mine", response_model=list[ListingOut])
-def list_mine(status_filter: str | None = Query(default=None, alias="status"), current_user: dict = Depends(get_current_user)):
-    return listing_service.list_my_listings(current_user["id"], status_filter)
+@router.get("/mine", response_model=ListingsPage)
+def list_mine(
+    status_filter: str | None = Query(default=None, alias="status"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=50),
+    current_user: dict = Depends(get_current_user),
+):
+    return listing_service.list_my_listings(current_user["id"], status_filter, page, page_size)
 
 
 @router.get("/{listing_id}", response_model=ListingOut)
@@ -32,6 +45,11 @@ def get_listing(listing_id: str, current_user: dict = Depends(get_current_user))
 @router.patch("/{listing_id}", response_model=ListingOut)
 def update_listing(listing_id: str, payload: ListingUpdateRequest, current_user: dict = Depends(get_current_user)):
     return listing_service.update_listing(current_user["id"], listing_id, payload.model_dump(exclude_unset=True))
+
+
+@router.delete("/{listing_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_listing(listing_id: str, current_user: dict = Depends(get_current_user)):
+    listing_service.delete_listing(current_user["id"], listing_id)
 
 
 @router.post("/{listing_id}/photos", response_model=list[ListingPhotoOut])
@@ -63,3 +81,8 @@ def reorder_photos(listing_id: str, payload: ReorderPhotosRequest, current_user:
 @router.post("/{listing_id}/submit", response_model=ListingOut)
 def submit_listing(listing_id: str, current_user: dict = Depends(get_current_user)):
     return listing_service.submit_listing(current_user["id"], listing_id)
+
+
+@router.post("/{listing_id}/review", response_model=ListingOut)
+def review_listing(listing_id: str, payload: ListingReviewRequest, admin_user: dict = Depends(require_admin)):
+    return listing_service.review_listing(listing_id, payload.action)

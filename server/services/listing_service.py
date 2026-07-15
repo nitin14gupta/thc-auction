@@ -101,13 +101,107 @@ def get_listing(user_id: str, listing_id: str) -> dict:
     return _hydrate(db, listing)
 
 
-def list_my_listings(user_id: str, status_filter: str | None = None) -> list[dict]:
+def list_my_listings(user_id: str, status_filter: str | None = None, page: int = 1, page_size: int = 10) -> dict:
     db = get_supabase_client()
-    query = db.table("listings").select("*").eq("seller_id", user_id).order("updated_at", desc=True)
+    query = db.table("listings").select("*", count="exact").eq("seller_id", user_id).order("updated_at", desc=True)
     if status_filter:
         query = query.eq("status", status_filter)
+
+    offset = (page - 1) * page_size
+    res = query.range(offset, offset + page_size - 1).execute()
+    listings = res.data or []
+    total = res.count or 0
+
+    listing_ids = [listing["id"] for listing in listings]
+    photos_by_listing: dict[str, list[dict]] = {lid: [] for lid in listing_ids}
+    if listing_ids:
+        photos_res = (
+            db.table("listing_photos")
+            .select("id, url, sort_order, listing_id")
+            .in_("listing_id", listing_ids)
+            .order("sort_order")
+            .execute()
+        )
+        for photo in photos_res.data or []:
+            photos_by_listing.setdefault(photo["listing_id"], []).append(photo)
+
+    items = []
+    for listing in listings:
+        listing["photos"] = photos_by_listing.get(listing["id"], [])
+        listing["suggested_bid_prices"] = get_suggested_bid_prices(listing.get("base_price"))
+        items.append(listing)
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+def browse_listings(
+    exclude_user_id: str,
+    scope: str,
+    category: str | None = None,
+    q: str | None = None,
+    page: int = 1,
+    page_size: int = 12,
+) -> dict:
+    from services.product_service import _first_image_url
+
+    db = get_supabase_client()
+    now = _now()
+
+    query = (
+        db.table("listings")
+        .select(
+            "id, variant_size, condition_grade, bid_price, auction_start_at, seller_id, "
+            "products(id, name, brand, images, price, product_type)"
+        )
+        .eq("status", "accepted")
+        .neq("seller_id", exclude_user_id)
+    )
+    query = query.lte("auction_start_at", now) if scope == "live" else query.gt("auction_start_at", now)
+
     res = query.execute()
-    return [_hydrate(db, listing) for listing in (res.data or [])]
+    rows = res.data or []
+
+    if category:
+        rows = [r for r in rows if (r.get("products") or {}).get("product_type") == category]
+    if q:
+        ql = q.strip().lower()
+        rows = [
+            r
+            for r in rows
+            if ql in f"{(r.get('products') or {}).get('name', '')} {(r.get('products') or {}).get('brand', '')}".lower()
+        ]
+
+    rows.sort(key=lambda r: r.get("auction_start_at") or "", reverse=(scope == "live"))
+
+    total = len(rows)
+    start = (page - 1) * page_size
+    page_rows = rows[start : start + page_size]
+
+    items = []
+    for r in page_rows:
+        p = r.get("products")
+        product = None
+        if p:
+            product = {
+                "id": p["id"],
+                "name": p["name"],
+                "brand": p.get("brand"),
+                "product_type": p.get("product_type"),
+                "price": p.get("price"),
+                "image_url": _first_image_url(p.get("images")),
+            }
+        items.append(
+            {
+                "id": r["id"],
+                "variant_size": r.get("variant_size"),
+                "condition_grade": r.get("condition_grade"),
+                "bid_price": r.get("bid_price"),
+                "auction_start_at": r.get("auction_start_at"),
+                "product": product,
+            }
+        )
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 def add_photos(user_id: str, listing_id: str, uploads: list[tuple[bytes, str]]) -> list[dict]:
@@ -139,6 +233,21 @@ def add_photos(user_id: str, listing_id: str, uploads: list[tuple[bytes, str]]) 
     return inserted
 
 
+def delete_listing(user_id: str, listing_id: str) -> None:
+    db = get_supabase_client()
+    listing = _get_owned_listing(db, listing_id, user_id)
+
+    if listing["status"] == "accepted":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Accepted listings can't be deleted.")
+
+    photos_res = db.table("listing_photos").select("r2_path").eq("listing_id", listing_id).execute()
+    for photo in photos_res.data or []:
+        r2_client.delete_file(photo["r2_path"])
+
+    # listing_photos rows cascade-delete via the FK, no need to delete them separately.
+    db.table("listings").delete().eq("id", listing_id).execute()
+
+
 def delete_photo(user_id: str, listing_id: str, photo_id: str) -> None:
     db = get_supabase_client()
     _get_owned_listing(db, listing_id, user_id)
@@ -162,6 +271,18 @@ def reorder_photos(user_id: str, listing_id: str, photo_ids: list[str]) -> list[
         ).execute()
 
     return _get_photos(db, listing_id)
+
+
+def _get_seller_and_product(db, listing: dict) -> tuple[dict | None, dict | None]:
+    seller_res = db.table("users").select("id, name, email").eq("id", listing["seller_id"]).limit(1).execute()
+    seller = seller_res.data[0] if seller_res.data else None
+
+    product = None
+    if listing.get("product_id"):
+        product_res = db.table("products").select("name").eq("id", listing["product_id"]).limit(1).execute()
+        product = product_res.data[0] if product_res.data else None
+
+    return seller, product
 
 
 def submit_listing(user_id: str, listing_id: str) -> dict:
@@ -190,4 +311,52 @@ def submit_listing(user_id: str, listing_id: str) -> dict:
     ).eq("id", listing_id).execute()
 
     res = db.table("listings").select("*").eq("id", listing_id).limit(1).execute()
-    return _hydrate(db, res.data[0])
+    updated = res.data[0]
+
+    seller, product = _get_seller_and_product(db, updated)
+    if seller:
+        from services.email_service import send_listing_created_email
+
+        try:
+            send_listing_created_email(seller["email"], seller["name"], product["name"] if product else "your item")
+        except Exception:
+            pass  # Email delivery failures shouldn't block a successful submission.
+
+    return _hydrate(db, updated)
+
+
+def review_listing(listing_id: str, action: str) -> dict:
+    db = get_supabase_client()
+    res = db.table("listings").select("*").eq("id", listing_id).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Listing not found.")
+    listing = res.data[0]
+
+    if listing["status"] != "pending_review":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only listings pending review can be reviewed.")
+
+    new_status = "accepted" if action == "accept" else "rejected"
+    db.table("listings").update({"status": new_status, "reviewed_at": _now(), "updated_at": _now()}).eq(
+        "id", listing_id
+    ).execute()
+
+    res = db.table("listings").select("*").eq("id", listing_id).limit(1).execute()
+    updated = res.data[0]
+
+    if new_status == "accepted":
+        seller, product = _get_seller_and_product(db, updated)
+        if seller:
+            from services.email_service import send_listing_accepted_email
+
+            try:
+                send_listing_accepted_email(
+                    seller["email"],
+                    seller["name"],
+                    product["name"] if product else "your item",
+                    updated.get("auction_start_at"),
+                    updated.get("bid_price"),
+                )
+            except Exception:
+                pass
+
+    return _hydrate(db, updated)

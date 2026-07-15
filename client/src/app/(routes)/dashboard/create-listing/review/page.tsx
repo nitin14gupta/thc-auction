@@ -8,11 +8,14 @@ import { ReviewSummarySection } from "@/components/create-listing/ReviewSummaryS
 import { submitListing } from "@/api/listingApi";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingWizard } from "@/hooks/useListingWizard";
+import { useToast } from "@/hooks/useToast";
+import { formatLocalDateTime } from "@/utils/dateUtils";
 import type { Product } from "@/types/product";
 
 export default function ReviewStepPage() {
   const router = useRouter();
   const { authFetch } = useAuth();
+  const { toast } = useToast();
   const { state } = useListingWizard();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +36,12 @@ export default function ReviewStepPage() {
     setError(null);
     try {
       await submitListing(authFetch, state.listingId);
+      toast("Listing submitted for review!", "success");
       router.push("/dashboard/my-listings");
     } catch {
-      setError("Couldn't submit your listing. Make sure every step is complete.");
+      const message = "Couldn't submit your listing. Make sure every step is complete.";
+      setError(message);
+      toast(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -62,7 +68,8 @@ export default function ReviewStepPage() {
         </ReviewSummarySection>
 
         <ReviewSummarySection title="Pricing" editHref="/dashboard/create-listing/pricing">
-          {state.bidPrice != null ? `₹${state.bidPrice.toLocaleString("en-IN")}` : "—"}
+          {state.bidPrice != null ? `₹${state.bidPrice.toLocaleString("en-IN")}` : "—"} · Starts{" "}
+          {formatLocalDateTime(state.auctionStartAt)}
         </ReviewSummarySection>
 
         {error && <p className="mt-4 font-[family-name:var(--font-barlow)] text-xs text-red-urgent">{error}</p>}

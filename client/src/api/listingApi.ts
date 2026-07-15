@@ -1,5 +1,5 @@
 import type { apiRequest } from "@/api/apiService";
-import type { Listing, ListingUpdatePatch, ListingPhoto } from "@/types/listing";
+import type { Listing, ListingsPage, ListingUpdatePatch, ListingPhoto } from "@/types/listing";
 
 type AuthFetch = <T>(path: string, options?: Omit<Parameters<typeof apiRequest>[1], "accessToken">) => Promise<T>;
 
@@ -15,9 +15,10 @@ export function getListing(authFetch: AuthFetch, listingId: string) {
   return authFetch<Listing>(`/listings/${listingId}`);
 }
 
-export function listMyListings(authFetch: AuthFetch, status?: string) {
-  const query = status ? `?status=${status}` : "";
-  return authFetch<Listing[]>(`/listings/mine${query}`);
+export function listMyListings(authFetch: AuthFetch, status?: string, page = 1, pageSize = 10) {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (status) params.set("status", status);
+  return authFetch<ListingsPage>(`/listings/mine?${params.toString()}`);
 }
 
 export function uploadListingPhotos(authFetch: AuthFetch, listingId: string, files: File[]) {
@@ -39,4 +40,8 @@ export function reorderListingPhotos(authFetch: AuthFetch, listingId: string, ph
 
 export function submitListing(authFetch: AuthFetch, listingId: string) {
   return authFetch<Listing>(`/listings/${listingId}/submit`, { method: "POST" });
+}
+
+export function deleteListing(authFetch: AuthFetch, listingId: string) {
+  return authFetch<void>(`/listings/${listingId}`, { method: "DELETE" });
 }

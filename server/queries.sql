@@ -14,6 +14,7 @@ create table if not exists public.users (
 create index if not exists idx_users_email on public.users (email);
 
 alter table public.users add column if not exists avatar_url text;
+alter table public.users add column if not exists is_admin boolean not null default false;
 
 -- One row per issued refresh token (hashed, never store raw tokens).
 -- Enables rotation + revocation ("logout everywhere", detect token reuse).
@@ -136,6 +137,15 @@ create table if not exists public.listings (
 create index if not exists idx_listings_seller_id on public.listings (seller_id);
 create index if not exists idx_listings_status on public.listings (status);
 create index if not exists idx_listings_product_id on public.listings (product_id);
+
+-- Auction scheduling (seller picks a local start time in Step 5, always stored
+-- in UTC) + admin accept/reject review.
+alter table public.listings add column if not exists auction_start_at timestamptz;
+alter table public.listings add column if not exists reviewed_at timestamptz;
+
+alter table public.listings drop constraint if exists listings_status_check;
+alter table public.listings add constraint listings_status_check
+    check (status in ('draft', 'pending_review', 'accepted', 'rejected'));
 
 create table if not exists public.listing_photos (
     id uuid primary key default gen_random_uuid(),

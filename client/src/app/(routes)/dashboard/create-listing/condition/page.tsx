@@ -9,10 +9,12 @@ import { ConditionNotesField } from "@/components/create-listing/ConditionNotesF
 import { WizardFooterActions } from "@/components/create-listing/WizardFooterActions";
 import { conditionGrades } from "@/constants/conditionGrades";
 import { useListingWizard } from "@/hooks/useListingWizard";
+import { useToast } from "@/hooks/useToast";
 import type { ConditionGrade } from "@/types/listing";
 
 export default function ConditionStepPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const { state, persistStep, setFields } = useListingWizard();
 
   useEffect(() => {
@@ -24,20 +26,29 @@ export default function ConditionStepPage() {
   if (state.isHydrating || !state.listingId) return <StepCardSkeleton />;
 
   async function handleSaveDraft() {
-    await persistStep({
-      condition_grade: state.conditionGrade ?? undefined,
-      condition_notes: state.conditionNotes || undefined,
-    });
-    router.push("/dashboard/my-listings");
+    try {
+      await persistStep({
+        condition_grade: state.conditionGrade ?? undefined,
+        condition_notes: state.conditionNotes || undefined,
+      });
+      toast("Saved as draft.", "success");
+      router.push("/dashboard/my-listings");
+    } catch {
+      toast("Couldn't save your changes. Try again.", "error");
+    }
   }
 
   async function handleNext() {
-    await persistStep({
-      condition_grade: state.conditionGrade ?? undefined,
-      condition_notes: state.conditionNotes || undefined,
-      current_step: 4,
-    });
-    router.push("/dashboard/create-listing/photos");
+    try {
+      await persistStep({
+        condition_grade: state.conditionGrade ?? undefined,
+        condition_notes: state.conditionNotes || undefined,
+        current_step: 4,
+      });
+      router.push("/dashboard/create-listing/photos");
+    } catch {
+      toast("Couldn't save your changes. Try again.", "error");
+    }
   }
 
   return (

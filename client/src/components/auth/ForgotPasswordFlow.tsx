@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/auth/FormError";
 import { FormField } from "@/components/auth/FormField";
 import { forgotPasswordRequest, resetPasswordRequest, verifyOtpRequest } from "@/api/authApi";
+import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/types/auth";
 
 type Step = "email" | "otp" | "reset";
@@ -15,6 +16,7 @@ const stepIndex: Record<Step, number> = { email: 1, otp: 2, reset: 3 };
 
 export function ForgotPasswordFlow() {
   const router = useRouter();
+  const { toast } = useToast();
   const [step, setStep] = useState<Step>("email");
 
   const [email, setEmail] = useState("");
@@ -32,9 +34,12 @@ export function ForgotPasswordFlow() {
     setIsSubmitting(true);
     try {
       await forgotPasswordRequest(email);
+      toast("Reset code sent to your email.", "success");
       setStep("otp");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+      setError(message);
+      toast(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -49,7 +54,9 @@ export function ForgotPasswordFlow() {
       setResetToken(data.reset_token);
       setStep("reset");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+      setError(message);
+      toast(message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -71,9 +78,12 @@ export function ForgotPasswordFlow() {
     setIsSubmitting(true);
     try {
       await resetPasswordRequest(resetToken, newPassword);
+      toast("Password updated. Sign in with your new password.", "success");
       router.push("/login");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+      setError(message);
+      toast(message, "error");
     } finally {
       setIsSubmitting(false);
     }

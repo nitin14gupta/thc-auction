@@ -1,6 +1,6 @@
 export type ConditionGrade = "DS" | "VNDS" | "USED" | "BEAT";
 
-export type ListingStatus = "draft" | "pending_review";
+export type ListingStatus = "draft" | "pending_review" | "accepted" | "rejected";
 
 export type ListingPhoto = {
   id: string;
@@ -26,6 +26,7 @@ export type Listing = {
   condition_notes: string | null;
   base_price: number | null;
   bid_price: number | null;
+  auction_start_at: string | null;
   status: ListingStatus;
   current_step: number;
   photos: ListingPhoto[];
@@ -33,6 +34,14 @@ export type Listing = {
   created_at: string | null;
   updated_at: string | null;
   submitted_at: string | null;
+  reviewed_at: string | null;
+};
+
+export type ListingsPage = {
+  items: Listing[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type ListingUpdatePatch = Partial<{
@@ -43,5 +52,6 @@ export type ListingUpdatePatch = Partial<{
   condition_grade: ConditionGrade;
   condition_notes: string;
   bid_price: number;
+  auction_start_at: string;
   current_step: number;
 }>;
