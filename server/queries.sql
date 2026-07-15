@@ -157,3 +157,34 @@ create table if not exists public.listing_photos (
 );
 
 create index if not exists idx_listing_photos_listing_id on public.listing_photos (listing_id);
+
+-- ============================================================
+-- Bidding / auction lifecycle
+-- ============================================================
+
+alter table public.listings add column if not exists auction_status text
+    check (auction_status in ('scheduled', 'live', 'sold', 'unsold'));
+alter table public.listings add column if not exists winner_id uuid references public.users (id) on delete set null;
+alter table public.listings add column if not exists final_price numeric(12,2);
+alter table public.listings add column if not exists sold_at timestamptz;
+
+create table if not exists public.bids (
+    id uuid primary key default gen_random_uuid(),
+    listing_id uuid not null references public.listings (id) on delete cascade,
+    bidder_id uuid not null references public.users (id) on delete cascade,
+    amount numeric(12,2) not null,
+    created_at timestamptz not null default now()
+);
+
+create index if not exists idx_bids_listing_id on public.bids (listing_id);
+create index if not exists idx_bids_bidder_id on public.bids (bidder_id);
+
+-- ============================================================
+-- Newsletter signups (public, no auth required)
+-- ============================================================
+
+create table if not exists public.newsletter_subscribers (
+    id uuid primary key default gen_random_uuid(),
+    email text not null unique,
+    created_at timestamptz not null default now()
+);

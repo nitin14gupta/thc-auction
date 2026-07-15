@@ -1,5 +1,14 @@
 import type { apiRequest } from "@/api/apiService";
-import type { Listing, ListingsPage, ListingUpdatePatch, ListingPhoto } from "@/types/listing";
+import type {
+  AuctionDetail,
+  AuctionScope,
+  BrowseListing,
+  BrowseListingsPage,
+  Listing,
+  ListingsPage,
+  ListingUpdatePatch,
+  ListingPhoto,
+} from "@/types/listing";
 
 type AuthFetch = <T>(path: string, options?: Omit<Parameters<typeof apiRequest>[1], "accessToken">) => Promise<T>;
 
@@ -44,4 +53,30 @@ export function submitListing(authFetch: AuthFetch, listingId: string) {
 
 export function deleteListing(authFetch: AuthFetch, listingId: string) {
   return authFetch<void>(`/listings/${listingId}`, { method: "DELETE" });
+}
+
+export function browseListings(
+  authFetch: AuthFetch,
+  scope: AuctionScope,
+  category?: string,
+  q?: string,
+  page = 1,
+  pageSize = 12
+) {
+  const params = new URLSearchParams({ scope, page: String(page), page_size: String(pageSize) });
+  if (category) params.set("category", category);
+  if (q) params.set("q", q);
+  return authFetch<BrowseListingsPage>(`/listings/browse?${params.toString()}`);
+}
+
+export function getAuctionDetail(authFetch: AuthFetch, listingId: string) {
+  return authFetch<AuctionDetail>(`/listings/${listingId}/auction`);
+}
+
+export function placeBid(authFetch: AuthFetch, listingId: string, amount: number) {
+  return authFetch<AuctionDetail>(`/listings/${listingId}/bids`, { method: "POST", body: { amount } });
+}
+
+export function getRelatedListings(authFetch: AuthFetch, listingId: string, limit = 4) {
+  return authFetch<BrowseListing[]>(`/listings/${listingId}/related?limit=${limit}`);
 }

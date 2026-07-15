@@ -2,12 +2,16 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 
 from routes.auth_routes import get_current_user
 from schemas.listing import (
+    AuctionDetailOut,
+    BrowseListingOut,
+    BrowseListingsPage,
     ListingCreateRequest,
     ListingOut,
     ListingPhotoOut,
     ListingReviewRequest,
     ListingsPage,
     ListingUpdateRequest,
+    PlaceBidRequest,
     ReorderPhotosRequest,
 )
 from services import listing_service
@@ -35,6 +39,37 @@ def list_mine(
     current_user: dict = Depends(get_current_user),
 ):
     return listing_service.list_my_listings(current_user["id"], status_filter, page, page_size)
+
+
+@router.get("/browse", response_model=BrowseListingsPage)
+def browse_listings(
+    scope: str = Query(default="live", pattern="^(live|upcoming|sold)$"),
+    category: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=12, ge=1, le=50),
+    current_user: dict = Depends(get_current_user),
+):
+    return listing_service.browse_listings(current_user["id"], scope, category, q, page, page_size)
+
+
+@router.get("/{listing_id}/auction", response_model=AuctionDetailOut)
+def get_auction_detail(listing_id: str, current_user: dict = Depends(get_current_user)):
+    return listing_service.get_auction_detail(current_user["id"], listing_id)
+
+
+@router.post("/{listing_id}/bids", response_model=AuctionDetailOut)
+def place_bid(listing_id: str, payload: PlaceBidRequest, current_user: dict = Depends(get_current_user)):
+    return listing_service.place_bid(current_user["id"], listing_id, payload.amount)
+
+
+@router.get("/{listing_id}/related", response_model=list[BrowseListingOut])
+def get_related_listings(
+    listing_id: str,
+    limit: int = Query(default=4, ge=1, le=12),
+    current_user: dict = Depends(get_current_user),
+):
+    return listing_service.get_related_listings(current_user["id"], listing_id, limit)
 
 
 @router.get("/{listing_id}", response_model=ListingOut)

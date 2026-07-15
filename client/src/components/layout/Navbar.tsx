@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 import { navLinks } from "@/constants/site";
@@ -9,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 export function Navbar() {
   const { user, isAuthenticated } = useAuth();
+  const pathname = usePathname();
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-ink">
@@ -21,20 +23,21 @@ export function Navbar() {
         </Link>
 
         <nav className="hidden items-center gap-7 lg:flex">
-          {navLinks.map((link, index) => (
-            <Link
-              key={link.label}
-              href={link.href}
-              className={`relative font-[family-name:var(--font-barlow)] text-sm font-medium uppercase tracking-wide transition-colors ${
-                index === 0 ? "text-paper" : "text-gray-on-dark hover:text-paper"
-              }`}
-            >
-              {link.label}
-              {index === 0 && (
-                <span className="absolute -bottom-2 left-0 h-[2px] w-full bg-tan" />
-              )}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+            return (
+              <Link
+                key={link.label}
+                href={link.href}
+                className={`relative font-[family-name:var(--font-barlow)] text-sm font-medium uppercase tracking-wide transition-colors ${
+                  isActive ? "text-paper" : "text-gray-on-dark hover:text-paper"
+                }`}
+              >
+                {link.label}
+                {isActive && <span className="absolute -bottom-2 left-0 h-[2px] w-full bg-tan" />}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="hidden flex-1 items-center md:flex md:max-w-xs lg:max-w-sm">

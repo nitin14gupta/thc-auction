@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 
 from db.config import get_supabase_client
+from services import auction_service
 from utils.r2_client import r2_client
 
 BID_DISCOUNTS = (0.30, 0.325, 0.35, 0.375, 0.40)
@@ -46,6 +47,7 @@ def _get_photos(db, listing_id: str) -> list[dict]:
 def _hydrate(db, listing: dict) -> dict:
     listing["photos"] = _get_photos(db, listing["id"])
     listing["suggested_bid_prices"] = get_suggested_bid_prices(listing.get("base_price"))
+    auction_service.sync_auction_status(db, listing)
     return listing
 
 
@@ -129,6 +131,7 @@ def list_my_listings(user_id: str, status_filter: str | None = None, page: int =
     for listing in listings:
         listing["photos"] = photos_by_listing.get(listing["id"], [])
         listing["suggested_bid_prices"] = get_suggested_bid_prices(listing.get("base_price"))
+        auction_service.sync_auction_status(db, listing)
         items.append(listing)
 
     return {"items": items, "total": total, "page": page, "page_size": page_size}
@@ -145,21 +148,29 @@ def browse_listings(
     from services.product_service import _first_image_url
 
     db = get_supabase_client()
-    now = _now()
+    target_status = {"live": "live", "upcoming": "scheduled", "sold": "sold"}[scope]
 
     query = (
         db.table("listings")
         .select(
-            "id, variant_size, condition_grade, bid_price, auction_start_at, seller_id, "
-            "products(id, name, brand, images, price, product_type)"
+            "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
+            "final_price, status, seller_id, products(id, name, brand, images, price, product_type)"
         )
         .eq("status", "accepted")
-        .neq("seller_id", exclude_user_id)
+        .not_.is_("auction_start_at", "null")
     )
-    query = query.lte("auction_start_at", now) if scope == "live" else query.gt("auction_start_at", now)
+    if scope != "sold":
+        # Sold listings are a public record — no reason to hide a seller's own
+        # sales from them, unlike live/upcoming where bidding on your own item
+        # makes no sense.
+        query = query.neq("seller_id", exclude_user_id)
 
     res = query.execute()
     rows = res.data or []
+
+    for r in rows:
+        auction_service.sync_auction_status(db, r)
+    rows = [r for r in rows if r.get("auction_status") == target_status]
 
     if category:
         rows = [r for r in rows if (r.get("products") or {}).get("product_type") == category]
@@ -171,7 +182,7 @@ def browse_listings(
             if ql in f"{(r.get('products') or {}).get('name', '')} {(r.get('products') or {}).get('brand', '')}".lower()
         ]
 
-    rows.sort(key=lambda r: r.get("auction_start_at") or "", reverse=(scope == "live"))
+    rows.sort(key=lambda r: r.get("auction_start_at") or "", reverse=(scope != "upcoming"))
 
     total = len(rows)
     start = (page - 1) * page_size
@@ -195,8 +206,11 @@ def browse_listings(
                 "id": r["id"],
                 "variant_size": r.get("variant_size"),
                 "condition_grade": r.get("condition_grade"),
-                "bid_price": r.get("bid_price"),
+                "bid_price": r.get("final_price") if scope == "sold" else auction_service.current_price(r),
                 "auction_start_at": r.get("auction_start_at"),
+                "auction_status": r.get("auction_status"),
+                "close_deadline": auction_service.next_close_deadline(r),
+                "bid_count": len(r.get("_bids") or []),
                 "product": product,
             }
         )
@@ -344,6 +358,7 @@ def review_listing(listing_id: str, action: str) -> dict:
     updated = res.data[0]
 
     if new_status == "accepted":
+        auction_service.sync_auction_status(db, updated)
         seller, product = _get_seller_and_product(db, updated)
         if seller:
             from services.email_service import send_listing_accepted_email
@@ -360,3 +375,170 @@ def review_listing(listing_id: str, action: str) -> dict:
                 pass
 
     return _hydrate(db, updated)
+
+
+def get_auction_detail(viewer_id: str, listing_id: str) -> dict:
+    from services.product_service import _first_image_url
+
+    db = get_supabase_client()
+    res = (
+        db.table("listings")
+        .select("*, products(id, name, brand, images, price, product_type)")
+        .eq("id", listing_id)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Listing not found.")
+    listing = res.data[0]
+    if listing["status"] != "accepted":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This auction isn't available.")
+
+    auction_service.sync_auction_status(db, listing)
+
+    p = listing.get("products")
+    product = None
+    if p:
+        product = {
+            "id": p["id"],
+            "name": p["name"],
+            "brand": p.get("brand"),
+            "product_type": p.get("product_type"),
+            "price": p.get("price"),
+            "image_url": _first_image_url(p.get("images")),
+        }
+
+    bids = sorted(listing.get("_bids") or [], key=lambda b: b["created_at"], reverse=True)
+
+    seller_res = db.table("users").select("id, name, avatar_url").eq("id", listing["seller_id"]).limit(1).execute()
+    seller = seller_res.data[0] if seller_res.data else None
+
+    current = auction_service.current_price(listing)
+
+    return {
+        "id": listing["id"],
+        "product": product,
+        "variant_size": listing.get("variant_size"),
+        "condition_grade": listing.get("condition_grade"),
+        "condition_notes": listing.get("condition_notes"),
+        "photos": _get_photos(db, listing_id),
+        "starting_price": listing.get("bid_price"),
+        "current_price": current,
+        "min_next_bid": current + 1,
+        "auction_status": listing.get("auction_status"),
+        "auction_start_at": listing.get("auction_start_at"),
+        "close_deadline": auction_service.next_close_deadline(listing),
+        "bids": bids,
+        "bid_count": len(bids),
+        "winner_id": listing.get("winner_id"),
+        "final_price": listing.get("final_price"),
+        "is_own_listing": listing["seller_id"] == viewer_id,
+        "seller": {"id": seller["id"], "name": seller["name"], "avatar_url": seller.get("avatar_url")}
+        if seller
+        else None,
+    }
+
+
+def get_related_listings(viewer_id: str, listing_id: str, limit: int = 4) -> list[dict]:
+    from services.product_service import _first_image_url
+
+    db = get_supabase_client()
+    res = (
+        db.table("listings")
+        .select("id, product_id, seller_id, products(product_type)")
+        .eq("id", listing_id)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        return []
+    source = res.data[0]
+    category = (source.get("products") or {}).get("product_type")
+
+    candidates_res = (
+        db.table("listings")
+        .select(
+            "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
+            "status, seller_id, products(id, name, brand, images, price, product_type)"
+        )
+        .eq("status", "accepted")
+        .neq("id", listing_id)
+        .neq("seller_id", viewer_id)
+        .not_.is_("auction_start_at", "null")
+        .execute()
+    )
+    rows = candidates_res.data or []
+    for r in rows:
+        auction_service.sync_auction_status(db, r)
+    rows = [r for r in rows if r.get("auction_status") in ("live", "scheduled")]
+
+    # Prefer same seller first, then same category, to surface a coherent
+    # "more from this drop" set rather than pure randomness.
+    same_seller = [r for r in rows if r["seller_id"] == source["seller_id"]]
+    same_category = [
+        r for r in rows if category and (r.get("products") or {}).get("product_type") == category and r["seller_id"] != source["seller_id"]
+    ]
+    ordered = (same_seller + same_category)[:limit]
+
+    items = []
+    for r in ordered:
+        p = r.get("products")
+        product = None
+        if p:
+            product = {
+                "id": p["id"],
+                "name": p["name"],
+                "brand": p.get("brand"),
+                "product_type": p.get("product_type"),
+                "price": p.get("price"),
+                "image_url": _first_image_url(p.get("images")),
+            }
+        items.append(
+            {
+                "id": r["id"],
+                "variant_size": r.get("variant_size"),
+                "condition_grade": r.get("condition_grade"),
+                "bid_price": auction_service.current_price(r),
+                "auction_start_at": r.get("auction_start_at"),
+                "auction_status": r.get("auction_status"),
+                "close_deadline": auction_service.next_close_deadline(r),
+                "bid_count": len(r.get("_bids") or []),
+                "product": product,
+            }
+        )
+    return items
+
+
+def place_bid(bidder_id: str, listing_id: str, amount: float) -> dict:
+    db = get_supabase_client()
+    res = db.table("listings").select("*").eq("id", listing_id).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Listing not found.")
+    listing = res.data[0]
+    if listing["status"] != "accepted":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This auction isn't available.")
+
+    auction_service.sync_auction_status(db, listing)
+
+    if listing["seller_id"] == bidder_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "You can't bid on your own listing.")
+
+    if listing.get("auction_status") != "live":
+        status_message = {
+            "scheduled": "This auction hasn't started yet.",
+            "sold": "This auction has already ended.",
+            "unsold": "This auction has already ended.",
+        }.get(listing.get("auction_status"), "This auction isn't accepting bids right now.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, status_message)
+
+    bids = listing.get("_bids") or []
+    if bids and bids[-1]["bidder_id"] == bidder_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "You're already the highest bidder.")
+
+    current = auction_service.current_price(listing)
+    if amount <= current:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Your bid must be higher than the current price of ₹{current:.0f}.")
+
+    db.table("bids").insert({"listing_id": listing_id, "bidder_id": bidder_id, "amount": amount}).execute()
+
+    return get_auction_detail(bidder_id, listing_id)

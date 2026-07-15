@@ -28,6 +28,10 @@ export type Listing = {
   bid_price: number | null;
   auction_start_at: string | null;
   status: ListingStatus;
+  auction_status: AuctionStatus | null;
+  winner_id: string | null;
+  final_price: number | null;
+  sold_at: string | null;
   current_step: number;
   photos: ListingPhoto[];
   suggested_bid_prices: SuggestedBidPrice[];
@@ -42,6 +46,72 @@ export type ListingsPage = {
   total: number;
   page: number;
   page_size: number;
+};
+
+export type BrowseProductSummary = {
+  id: string;
+  name: string;
+  brand: string | null;
+  product_type: string | null;
+  price: number | null;
+  image_url: string | null;
+};
+
+export type BrowseListing = {
+  id: string;
+  variant_size: string | null;
+  condition_grade: ConditionGrade | null;
+  bid_price: number | null;
+  auction_start_at: string | null;
+  auction_status: AuctionStatus | null;
+  close_deadline: string | null;
+  bid_count: number;
+  product: BrowseProductSummary | null;
+};
+
+export type BrowseListingsPage = {
+  items: BrowseListing[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type AuctionStatus = "scheduled" | "live" | "sold" | "unsold";
+
+export type AuctionScope = "live" | "upcoming" | "sold";
+
+export type Bid = {
+  id: string;
+  bidder_id: string;
+  amount: number;
+  created_at: string;
+};
+
+export type AuctionSeller = {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+};
+
+export type AuctionDetail = {
+  id: string;
+  product: BrowseProductSummary | null;
+  variant_size: string | null;
+  condition_grade: ConditionGrade | null;
+  condition_notes: string | null;
+  photos: ListingPhoto[];
+  starting_price: number | null;
+  current_price: number;
+  min_next_bid: number | null;
+  auction_status: AuctionStatus | null;
+  auction_start_at: string | null;
+  close_deadline: string | null;
+  bids: Bid[];
+  bid_count: number;
+  winner_id: string | null;
+  final_price: number | null;
+  is_own_listing: boolean;
+  seller: AuctionSeller | null;
 };
 
 export type ListingUpdatePatch = Partial<{

@@ -54,6 +54,10 @@ class ListingOut(BaseModel):
     bid_price: float | None = None
     auction_start_at: str | None = None
     status: str
+    auction_status: str | None = None
+    winner_id: str | None = None
+    final_price: float | None = None
+    sold_at: str | None = None
     current_step: int
     photos: list[ListingPhotoOut] = []
     suggested_bid_prices: list[SuggestedBidPrice] = []
@@ -89,6 +93,9 @@ class BrowseListingOut(BaseModel):
     condition_grade: str | None = None
     bid_price: float | None = None
     auction_start_at: str | None = None
+    auction_status: str | None = None
+    close_deadline: str | None = None
+    bid_count: int = 0
     product: BrowseProductSummary | None = None
 
 
@@ -97,3 +104,41 @@ class BrowseListingsPage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class BidOut(BaseModel):
+    id: str
+    bidder_id: str
+    amount: float
+    created_at: str
+
+
+class SellerSummary(BaseModel):
+    id: str
+    name: str
+    avatar_url: str | None = None
+
+
+class AuctionDetailOut(BaseModel):
+    id: str
+    product: BrowseProductSummary | None = None
+    variant_size: str | None = None
+    condition_grade: str | None = None
+    condition_notes: str | None = None
+    photos: list[ListingPhotoOut] = []
+    starting_price: float | None = None
+    current_price: float
+    min_next_bid: float | None = None
+    auction_status: str | None = None
+    auction_start_at: str | None = None
+    close_deadline: str | None = None
+    bids: list[BidOut] = []
+    bid_count: int = 0
+    winner_id: str | None = None
+    final_price: float | None = None
+    is_own_listing: bool = False
+    seller: SellerSummary | None = None
+
+
+class PlaceBidRequest(BaseModel):
+    amount: float = Field(gt=0)
