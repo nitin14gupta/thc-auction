@@ -396,6 +396,11 @@ def get_auction_detail(viewer_id: str, listing_id: str) -> dict:
 
     auction_service.sync_auction_status(db, listing)
 
+    if listing["seller_id"] != viewer_id:
+        from services import analytics_service
+
+        analytics_service.increment_view_count(db, listing)
+
     p = listing.get("products")
     product = None
     if p:
@@ -415,6 +420,11 @@ def get_auction_detail(viewer_id: str, listing_id: str) -> dict:
 
     current = auction_service.current_price(listing)
 
+    from services import analytics_service
+
+    watch_count = analytics_service.get_watch_count(db, listing_id)
+    is_watching = analytics_service.is_watching(db, listing_id, viewer_id)
+
     return {
         "id": listing["id"],
         "product": product,
@@ -433,6 +443,9 @@ def get_auction_detail(viewer_id: str, listing_id: str) -> dict:
         "winner_id": listing.get("winner_id"),
         "final_price": listing.get("final_price"),
         "is_own_listing": listing["seller_id"] == viewer_id,
+        "view_count": listing.get("view_count", 0),
+        "watch_count": watch_count,
+        "is_watching": is_watching,
         "seller": {"id": seller["id"], "name": seller["name"], "avatar_url": seller.get("avatar_url")}
         if seller
         else None,

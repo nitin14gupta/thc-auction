@@ -8,6 +8,7 @@ import { BidHistoryList } from "@/components/auctions/BidHistoryList";
 import { SellerCard } from "@/components/auctions/SellerCard";
 import { RelatedListingsSection } from "@/components/auctions/RelatedListingsSection";
 import { StaleLinkBanner } from "@/components/auctions/StaleLinkBanner";
+import { WatchToggleButton } from "@/components/auctions/WatchToggleButton";
 import { useAuctionDetail } from "@/hooks/useAuctionDetail";
 import { useAuth } from "@/hooks/useAuth";
 import { useCountdown } from "@/hooks/useCountdown";
@@ -72,13 +73,24 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
             </div>
 
             <div>
-              <h1 className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-extrabold uppercase tracking-tight text-paper">
-                {detail.product?.name ?? "Listing"}
-              </h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-extrabold uppercase tracking-tight text-paper">
+                  {detail.product?.name ?? "Listing"}
+                </h1>
+                {!detail.is_own_listing && (
+                  <WatchToggleButton
+                    listingId={detail.id}
+                    isWatching={detail.is_watching}
+                    watchCount={detail.watch_count}
+                    onToggled={refresh}
+                  />
+                )}
+              </div>
               <p className="mt-1 font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
                 {detail.product?.brand ?? detail.product?.product_type ?? "—"}
                 {detail.variant_size ? ` · Size ${detail.variant_size}` : ""}
                 {detail.condition_grade ? ` · ${detail.condition_grade}` : ""}
+                {detail.view_count > 0 ? ` · ${detail.view_count} view${detail.view_count === 1 ? "" : "s"}` : ""}
               </p>
 
               {detail.condition_notes && (
@@ -125,11 +137,23 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
                       Bidding opens once the auction starts.
                     </p>
                   ) : detail.auction_status === "sold" ? (
-                    <p className="font-[family-name:var(--font-barlow)] text-sm text-emerald-400">
-                      {detail.winner_id === user?.id
-                        ? "You won this auction! Payment (Razorpay) is coming soon."
-                        : "This auction has ended."}
-                    </p>
+                    detail.winner_id === user?.id ? (
+                      <div className="flex flex-col gap-2">
+                        <p className="font-[family-name:var(--font-barlow)] text-sm text-emerald-400">
+                          You won this auction! Pay within 2 hours or it goes to the next bidder.
+                        </p>
+                        <Link
+                          href="/dashboard/my-orders"
+                          className="inline-flex w-fit items-center rounded-md bg-tan px-4 py-2 font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase text-ink-on-sand hover:bg-tan/80"
+                        >
+                          Pay Now →
+                        </Link>
+                      </div>
+                    ) : (
+                      <p className="font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
+                        This auction has ended.
+                      </p>
+                    )
                   ) : (
                     <p className="font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
                       This auction ended with no bids.

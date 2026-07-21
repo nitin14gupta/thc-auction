@@ -111,6 +111,9 @@ export type AuctionDetail = {
   winner_id: string | null;
   final_price: number | null;
   is_own_listing: boolean;
+  view_count: number;
+  watch_count: number;
+  is_watching: boolean;
   seller: AuctionSeller | null;
 };
 

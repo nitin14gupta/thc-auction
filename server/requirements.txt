@@ -8,3 +8,4 @@ PyJWT
 python-multipart
 boto3
 Pillow
+razorpay

@@ -68,3 +68,60 @@ Starting price: {price}
 — HYPE.
 """
     _send(to_email, subject, body)
+
+
+def send_auction_won_email(to_email: str, name: str, product_name: str, amount: float, deadline_minutes: int) -> None:
+    subject = f"You won \"{product_name}\" — pay within {deadline_minutes} minutes"
+    body = f"""Hi {name},
+
+Congratulations — you won the auction for "{product_name}" at ₹{amount:,.0f}!
+
+You have {deadline_minutes} minutes to complete payment, or the item goes to the next highest bidder (or is marked unsold if there isn't one). Head to My Orders on HYPE. to pay now.
+
+— HYPE.
+"""
+    _send(to_email, subject, body)
+
+
+def send_payment_expired_reassigned_email(to_email: str, name: str, product_name: str) -> None:
+    subject = f"Your payment window for \"{product_name}\" has expired"
+    body = f"""Hi {name},
+
+Your 2-hour payment window for "{product_name}" has passed without payment, so the win has moved on to the next highest bidder.
+
+— HYPE.
+"""
+    _send(to_email, subject, body)
+
+
+def send_payment_expired_unsold_email(to_email: str, name: str, product_name: str) -> None:
+    subject = f"Your payment window for \"{product_name}\" has expired"
+    body = f"""Hi {name},
+
+Your 2-hour payment window for "{product_name}" has passed without payment. There were no other bidders, so this listing is now marked unsold.
+
+— HYPE.
+"""
+    _send(to_email, subject, body)
+
+
+def send_payment_confirmed_email(to_email: str, name: str, product_name: str, amount: float) -> None:
+    subject = f"Payment confirmed for \"{product_name}\""
+    body = f"""Hi {name},
+
+We've received your payment of ₹{amount:,.0f} for "{product_name}". The seller will be in touch about delivery.
+
+— HYPE.
+"""
+    _send(to_email, subject, body)
+
+
+def send_item_sold_paid_email(to_email: str, name: str, product_name: str, amount: float) -> None:
+    subject = f"\"{product_name}\" is paid for — time to ship"
+    body = f"""Hi {name},
+
+The buyer for your listing "{product_name}" has paid ₹{amount:,.0f}. Please prepare the item for shipment.
+
+— HYPE.
+"""
+    _send(to_email, subject, body)

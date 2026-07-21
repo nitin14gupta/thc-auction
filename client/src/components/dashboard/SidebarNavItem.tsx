@@ -28,6 +28,12 @@ const ICONS: Record<DashboardNavItem["icon"], (className: string) => React.React
       <path d="M3 7v10l9 4 9-4V7" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
     </svg>
   ),
+  myOrders: (className) => (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M6 8V6a6 6 0 0 1 12 0v2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <rect x="3.5" y="8" width="17" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  ),
   payouts: (className) => (
     <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
       <rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" strokeWidth="1.8" />

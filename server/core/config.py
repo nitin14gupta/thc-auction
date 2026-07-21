@@ -40,5 +40,10 @@ class Settings:
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", os.getenv("SMTP_USERNAME", ""))
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "HYPE.")
 
+    # Razorpay
+    RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
+    RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
+    PAYMENT_WINDOW_MINUTES: int = _get_int("PAYMENT_WINDOW_MINUTES", 120)
+
 
 settings = Settings()

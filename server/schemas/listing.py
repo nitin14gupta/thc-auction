@@ -137,6 +137,9 @@ class AuctionDetailOut(BaseModel):
     winner_id: str | None = None
     final_price: float | None = None
     is_own_listing: bool = False
+    view_count: int = 0
+    watch_count: int = 0
+    is_watching: bool = False
     seller: SellerSummary | None = None
 
 

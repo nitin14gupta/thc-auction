@@ -80,3 +80,7 @@ export function placeBid(authFetch: AuthFetch, listingId: string, amount: number
 export function getRelatedListings(authFetch: AuthFetch, listingId: string, limit = 4) {
   return authFetch<BrowseListing[]>(`/listings/${listingId}/related?limit=${limit}`);
 }
+
+export function toggleWatch(authFetch: AuthFetch, listingId: string) {
+  return authFetch<{ is_watching: boolean; watch_count: number }>(`/listings/${listingId}/watch`, { method: "POST" });
+}

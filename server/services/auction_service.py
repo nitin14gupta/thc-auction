@@ -94,9 +94,32 @@ def sync_auction_status(db, listing: dict) -> dict:
         else:
             new_status = "live"
 
-    if new_status != listing.get("auction_status"):
+    old_status = listing.get("auction_status")
+    if new_status != old_status:
         updates["auction_status"] = new_status
-        db.table("listings").update(updates).eq("id", listing["id"]).execute()
-        listing.update(updates)
+
+        # Optimistic concurrency: only apply if auction_status still matches what
+        # we read (WHERE id=... AND auction_status=<old>). If two requests race to
+        # close the same listing, only one update actually matches a row — the
+        # loser sees an empty result and refetches instead of double-firing the
+        # sold side effects (order creation + emails).
+        query = db.table("listings").update(updates).eq("id", listing["id"])
+        query = query.is_("auction_status", "null") if old_status is None else query.eq("auction_status", old_status)
+        res = query.execute()
+        won_race = bool(res.data)
+
+        if won_race:
+            listing.update(updates)
+            if new_status == "sold":
+                from services import order_service
+
+                try:
+                    order_service.create_order_for_winner(db, listing)
+                except Exception:
+                    pass  # Order/email hiccups shouldn't block the auction status itself.
+        else:
+            refreshed = db.table("listings").select("*").eq("id", listing["id"]).limit(1).execute()
+            if refreshed.data:
+                listing.update(refreshed.data[0])
 
     return listing

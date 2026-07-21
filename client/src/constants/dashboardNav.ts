@@ -1,13 +1,14 @@
 export type DashboardNavItem = {
   label: string;
   href: string;
-  icon: "overview" | "listings" | "create" | "orders" | "payouts" | "analytics" | "settings";
+  icon: "overview" | "listings" | "create" | "orders" | "myOrders" | "payouts" | "analytics" | "settings";
 };
 
 export const dashboardNavItems: DashboardNavItem[] = [
   { label: "Overview", href: "/dashboard/overview", icon: "overview" },
   { label: "My Listings", href: "/dashboard/my-listings", icon: "listings" },
   { label: "Create Listing", href: "/dashboard/create-listing", icon: "create" },
+  { label: "My Orders", href: "/dashboard/my-orders", icon: "myOrders" },
   { label: "Orders & Shipments", href: "/dashboard/orders-shipments", icon: "orders" },
   { label: "Payouts & Earnings", href: "/dashboard/payouts-earnings", icon: "payouts" },
   { label: "Analytics", href: "/dashboard/analytics", icon: "analytics" },

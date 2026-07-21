@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
 from routes.auth_routes import get_current_user
+from schemas.analytics import WatchToggleOut
 from schemas.listing import (
     AuctionDetailOut,
     BrowseListingOut,
@@ -14,7 +15,7 @@ from schemas.listing import (
     PlaceBidRequest,
     ReorderPhotosRequest,
 )
-from services import listing_service
+from services import analytics_service, listing_service
 from utils.image_utils import MAX_UPLOAD_BYTES
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -61,6 +62,11 @@ def get_auction_detail(listing_id: str, current_user: dict = Depends(get_current
 @router.post("/{listing_id}/bids", response_model=AuctionDetailOut)
 def place_bid(listing_id: str, payload: PlaceBidRequest, current_user: dict = Depends(get_current_user)):
     return listing_service.place_bid(current_user["id"], listing_id, payload.amount)
+
+
+@router.post("/{listing_id}/watch", response_model=WatchToggleOut)
+def toggle_watch(listing_id: str, current_user: dict = Depends(get_current_user)):
+    return analytics_service.toggle_watch(current_user["id"], listing_id)
 
 
 @router.get("/{listing_id}/related", response_model=list[BrowseListingOut])

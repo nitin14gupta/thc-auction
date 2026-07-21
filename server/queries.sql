@@ -188,3 +188,70 @@ create table if not exists public.newsletter_subscribers (
     email text not null unique,
     created_at timestamptz not null default now()
 );
+
+-- ============================================================
+-- Orders / payment (Razorpay). One row per "chance to pay" — if a winner's
+-- 120-minute window lapses, their order is marked expired and a fresh order
+-- is created for the next-highest bidder (see services/order_service.py).
+-- ============================================================
+
+create table if not exists public.orders (
+    id uuid primary key default gen_random_uuid(),
+    listing_id uuid not null references public.listings (id) on delete cascade,
+    buyer_id uuid not null references public.users (id) on delete cascade,
+    amount numeric(12,2) not null,
+    status text not null default 'pending_payment'
+        check (status in ('pending_payment', 'paid', 'expired', 'cancelled')),
+    payment_deadline timestamptz not null,
+    razorpay_order_id text,
+    razorpay_payment_id text,
+    created_at timestamptz not null default now(),
+    paid_at timestamptz
+);
+
+create index if not exists idx_orders_listing_id on public.orders (listing_id);
+create index if not exists idx_orders_buyer_id on public.orders (buyer_id);
+create index if not exists idx_orders_status on public.orders (status);
+
+-- Concurrency guard: only one "chance to pay" can be outstanding per listing
+-- at a time. Two racing requests trying to create an order for the same
+-- listing/close event will have the second insert rejected by Postgres
+-- instead of silently creating a duplicate payable order.
+create unique index if not exists idx_orders_one_pending_per_listing
+    on public.orders (listing_id)
+    where status = 'pending_payment';
+
+-- ============================================================
+-- Analytics support: view tracking, watchlist, and seller payouts.
+--
+-- Payouts are NOT computed automatically — a real payout only happens once
+-- the buyer has paid and the item has shipped/delivered via the delivery
+-- partner, which today is a manual, admin-confirmed step (there's no admin
+-- panel yet). This table is the source of truth for "Total Earnings" and
+-- starts empty; an admin tool to insert rows here is future work.
+-- ============================================================
+
+alter table public.listings add column if not exists view_count integer not null default 0;
+
+create table if not exists public.listing_watchlist (
+    id uuid primary key default gen_random_uuid(),
+    listing_id uuid not null references public.listings (id) on delete cascade,
+    user_id uuid not null references public.users (id) on delete cascade,
+    created_at timestamptz not null default now(),
+    unique (listing_id, user_id)
+);
+
+create index if not exists idx_listing_watchlist_listing_id on public.listing_watchlist (listing_id);
+create index if not exists idx_listing_watchlist_user_id on public.listing_watchlist (user_id);
+
+create table if not exists public.payouts (
+    id uuid primary key default gen_random_uuid(),
+    seller_id uuid not null references public.users (id) on delete cascade,
+    listing_id uuid references public.listings (id) on delete set null,
+    amount numeric(12,2) not null,
+    note text,
+    created_at timestamptz not null default now()
+);
+
+create index if not exists idx_payouts_seller_id on public.payouts (seller_id);
+create index if not exists idx_payouts_listing_id on public.payouts (listing_id);
