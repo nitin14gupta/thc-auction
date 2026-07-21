@@ -45,37 +45,60 @@ def next_close_deadline(listing: dict) -> str | None:
     return None
 
 
-def sync_auction_status(db, listing: dict) -> dict:
+def _fetch_bids(db, listing_id: str) -> list[dict]:
+    res = (
+        db.table("bids")
+        .select("id, bidder_id, amount, created_at")
+        .eq("listing_id", listing_id)
+        .order("created_at")
+        .execute()
+    )
+    return res.data or []
+
+
+def batch_fetch_bids(db, listing_ids: list[str]) -> dict[str, list[dict]]:
+    """One query for every listing's bids instead of one query per listing —
+    use this before calling sync_auction_status in a loop over a page of
+    listings (list_my_listings, browse_listings, get_related_listings)."""
+    by_listing: dict[str, list[dict]] = {lid: [] for lid in listing_ids}
+    if not listing_ids:
+        return by_listing
+    res = (
+        db.table("bids")
+        .select("id, bidder_id, amount, created_at, listing_id")
+        .in_("listing_id", listing_ids)
+        .order("created_at")
+        .execute()
+    )
+    for bid in res.data or []:
+        by_listing.setdefault(bid["listing_id"], []).append(bid)
+    return by_listing
+
+
+def sync_auction_status(db, listing: dict, bids: list[dict] | None = None) -> dict:
     """Recompute + persist auction_status (and winner/final_price on close) if
-    it has changed. Always stashes the fetched bids on listing["_bids"] so
-    callers don't need a second query. Returns the same dict, mutated."""
+    it has changed. Always stashes the bids on listing["_bids"] so callers
+    don't need a second query.
+
+    Pass `bids` when the caller already has them (e.g. batch-fetched for a
+    whole page of listings via `.in_("listing_id", ids)`) — otherwise this
+    fires one query per listing, which is fine for a single detail view but
+    an N+1 disaster for a list of N listings."""
     if listing.get("status") != "accepted" or not listing.get("auction_start_at"):
         listing["_bids"] = []
         return listing
 
     if listing.get("auction_status") in TERMINAL_STATUSES:
-        if "_bids" not in listing:
-            bids_res = (
-                db.table("bids")
-                .select("id, bidder_id, amount, created_at")
-                .eq("listing_id", listing["id"])
-                .order("created_at")
-                .execute()
-            )
-            listing["_bids"] = bids_res.data or []
+        if bids is not None:
+            listing["_bids"] = bids
+        elif "_bids" not in listing:
+            listing["_bids"] = _fetch_bids(db, listing["id"])
         return listing
 
     now = datetime.now(timezone.utc)
     start = _parse(listing["auction_start_at"])
 
-    bids_res = (
-        db.table("bids")
-        .select("id, bidder_id, amount, created_at")
-        .eq("listing_id", listing["id"])
-        .order("created_at")
-        .execute()
-    )
-    bids = bids_res.data or []
+    bids = bids if bids is not None else _fetch_bids(db, listing["id"])
     listing["_bids"] = bids
 
     updates: dict = {}

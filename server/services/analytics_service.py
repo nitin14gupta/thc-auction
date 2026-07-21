@@ -10,6 +10,7 @@ sales.
 """
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -88,22 +89,84 @@ def _get_seller_listings(db, seller_id: str) -> list[dict]:
     return res.data or []
 
 
+def _get_active_preview(db, seller_id: str) -> list[dict]:
+    from services.product_service import _first_image_url
+
+    res = (
+        db.table("listings")
+        .select("id, bid_price, final_price, products(id, name, images, price)")
+        .eq("seller_id", seller_id)
+        .eq("status", "accepted")
+        .in_("auction_status", list(ACTIVE_AUCTION_STATUSES))
+        .order("created_at", desc=True)
+        .limit(4)
+        .execute()
+    )
+    preview = []
+    for l in res.data or []:
+        p = l.get("products")
+        if not p:
+            continue
+        preview.append(
+            {
+                "id": l["id"],
+                "name": p["name"],
+                "image_url": _first_image_url(p.get("images")),
+                "price": l.get("bid_price") or p.get("price"),
+            }
+        )
+    return preview
+
+
 def get_seller_overview(seller_id: str) -> dict:
     db = get_supabase_client()
-    listings = _get_seller_listings(db, seller_id)
+
+    # These three only need seller_id — none of them depend on each other's
+    # results — so fetch all three concurrently instead of back-to-back.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        listings_future = pool.submit(_get_seller_listings, db, seller_id)
+        payouts_future = pool.submit(
+            lambda: db.table("payouts")
+            .select("amount, created_at")
+            .eq("seller_id", seller_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        active_preview_future = pool.submit(_get_active_preview, db, seller_id)
+
+        listings = listings_future.result()
+        payouts = payouts_future.result().data or []
+        active_preview = active_preview_future.result()
+
     listing_ids = [l["id"] for l in listings]
+    product_ids = list({l["product_id"] for l in listings if l.get("product_id")})
 
     active_listings = sum(1 for l in listings if l["status"] == "accepted" and l.get("auction_status") in ACTIVE_AUCTION_STATUSES)
     pending_review = sum(1 for l in listings if l["status"] == "pending_review")
+    total_earnings = sum(p["amount"] for p in payouts)
 
-    payouts_res = db.table("payouts").select("amount").eq("seller_id", seller_id).execute()
-    total_earnings = sum(p["amount"] for p in (payouts_res.data or []))
-
-    products_by_id: dict[str, dict] = {}
-    product_ids = list({l["product_id"] for l in listings if l.get("product_id")})
-    if product_ids:
-        products_res = db.table("products").select("id, name").in_("id", product_ids).execute()
-        products_by_id = {p["id"]: p for p in (products_res.data or [])}
+    # Both depend on `listings` (product_ids / listing_ids), but not on each
+    # other, so they can still run concurrently once listings are in hand.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        products_future = (
+            pool.submit(lambda: db.table("products").select("id, name").in_("id", product_ids).execute())
+            if product_ids
+            else None
+        )
+        bids_future = (
+            pool.submit(
+                lambda: db.table("bids")
+                .select("amount, created_at, listing_id")
+                .in_("listing_id", listing_ids)
+                .order("created_at", desc=True)
+                .limit(20)
+                .execute()
+            )
+            if listing_ids
+            else None
+        )
+        products_by_id = {p["id"]: p for p in (products_future.result().data or [])} if products_future else {}
+        recent_bids = bids_future.result().data or [] if bids_future else []
 
     events = []
     for l in listings:
@@ -115,60 +178,22 @@ def get_seller_overview(seller_id: str) -> dict:
         elif l.get("created_at"):
             events.append({"type": "created", "text": f'New listing created: "{product_name}"', "at": l["created_at"]})
 
-    if listing_ids:
-        bids_res = (
-            db.table("bids")
-            .select("amount, created_at, listing_id")
-            .in_("listing_id", listing_ids)
-            .order("created_at", desc=True)
-            .limit(20)
-            .execute()
+    listings_by_id = {l["id"]: l for l in listings}
+    for b in recent_bids:
+        listing = listings_by_id.get(b["listing_id"], {})
+        product_name = products_by_id.get(listing.get("product_id"), {}).get("name", "your item")
+        events.append(
+            {
+                "type": "bid",
+                "text": f'New bid of ₹{b["amount"]:,.0f} on "{product_name}"',
+                "at": b["created_at"],
+            }
         )
-        listings_by_id = {l["id"]: l for l in listings}
-        for b in bids_res.data or []:
-            listing = listings_by_id.get(b["listing_id"], {})
-            product_name = products_by_id.get(listing.get("product_id"), {}).get("name", "your item")
-            events.append(
-                {
-                    "type": "bid",
-                    "text": f'New bid of ₹{b["amount"]:,.0f} on "{product_name}"',
-                    "at": b["created_at"],
-                }
-            )
 
-    payouts_events_res = (
-        db.table("payouts").select("amount, created_at").eq("seller_id", seller_id).order("created_at", desc=True).limit(10).execute()
-    )
-    for p in payouts_events_res.data or []:
+    for p in payouts[:10]:
         events.append({"type": "payout", "text": f'Payout of ₹{p["amount"]:,.0f} initiated', "at": p["created_at"]})
 
     events.sort(key=lambda e: e["at"], reverse=True)
-
-    active_res = (
-        db.table("listings")
-        .select("id, bid_price, final_price, products(id, name, images, price)")
-        .eq("seller_id", seller_id)
-        .eq("status", "accepted")
-        .in_("auction_status", list(ACTIVE_AUCTION_STATUSES))
-        .order("created_at", desc=True)
-        .limit(4)
-        .execute()
-    )
-    from services.product_service import _first_image_url
-
-    active_preview = []
-    for l in active_res.data or []:
-        p = l.get("products")
-        if not p:
-            continue
-        active_preview.append(
-            {
-                "id": l["id"],
-                "name": p["name"],
-                "image_url": _first_image_url(p.get("images")),
-                "price": l.get("bid_price") or p.get("price"),
-            }
-        )
 
     return {
         "active_listings": active_listings,
@@ -181,24 +206,50 @@ def get_seller_overview(seller_id: str) -> dict:
 
 def get_seller_analytics(seller_id: str, days: int = 90) -> dict:
     db = get_supabase_client()
-    listings = _get_seller_listings(db, seller_id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        listings_future = pool.submit(_get_seller_listings, db, seller_id)
+        payouts_future = pool.submit(
+            lambda: db.table("payouts").select("amount, created_at").eq("seller_id", seller_id).execute()
+        )
+        listings = listings_future.result()
+        payouts = payouts_future.result().data or []
+
     listing_ids = [l["id"] for l in listings]
-
-    payouts_res = db.table("payouts").select("amount, created_at").eq("seller_id", seller_id).execute()
-    payouts = payouts_res.data or []
+    product_ids = list({l["product_id"] for l in listings if l.get("product_id")})
     total_earnings = sum(p["amount"] for p in payouts)
-
-    bids = []
-    if listing_ids:
-        bids_res = db.table("bids").select("amount, created_at, listing_id").in_("listing_id", listing_ids).execute()
-        bids = bids_res.data or []
-
     total_views = sum(l.get("view_count") or 0 for l in listings)
 
-    watch_count = 0
-    if listing_ids:
-        watch_res = db.table("listing_watchlist").select("id", count="exact").in_("listing_id", listing_ids).execute()
-        watch_count = watch_res.count or 0
+    # Bids, watchlist rows, and products all depend only on listings/product_ids
+    # (already in hand) — not on each other — and the watchlist rows serve
+    # both the total count and the per-listing breakdown, so there's no
+    # separate count-only query needed.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        bids_future = (
+            pool.submit(
+                lambda: db.table("bids").select("amount, created_at, listing_id").in_("listing_id", listing_ids).execute()
+            )
+            if listing_ids
+            else None
+        )
+        watch_future = (
+            pool.submit(lambda: db.table("listing_watchlist").select("listing_id").in_("listing_id", listing_ids).execute())
+            if listing_ids
+            else None
+        )
+        products_future = (
+            pool.submit(lambda: db.table("products").select("id, name, price").in_("id", product_ids).execute())
+            if product_ids
+            else None
+        )
+        bids = bids_future.result().data or [] if bids_future else []
+        watch_rows = watch_future.result().data or [] if watch_future else []
+        products_by_id = {p["id"]: p for p in (products_future.result().data or [])} if products_future else {}
+
+    watch_by_listing: dict[str, int] = defaultdict(int)
+    for row in watch_rows:
+        watch_by_listing[row["listing_id"]] += 1
+    watch_count = len(watch_rows)
 
     cutoff = _now() - timedelta(days=days)
 
@@ -224,18 +275,6 @@ def get_seller_analytics(seller_id: str, days: int = 90) -> dict:
     bids_by_listing: dict[str, list[dict]] = defaultdict(list)
     for b in bids:
         bids_by_listing[b["listing_id"]].append(b)
-
-    watch_by_listing: dict[str, int] = defaultdict(int)
-    if listing_ids:
-        watch_rows_res = db.table("listing_watchlist").select("listing_id").in_("listing_id", listing_ids).execute()
-        for row in watch_rows_res.data or []:
-            watch_by_listing[row["listing_id"]] += 1
-
-    product_ids = list({l["product_id"] for l in listings if l.get("product_id")})
-    products_by_id: dict[str, dict] = {}
-    if product_ids:
-        products_res = db.table("products").select("id, name, price").in_("id", product_ids).execute()
-        products_by_id = {p["id"]: p for p in (products_res.data or [])}
 
     performance = []
     for l in listings:

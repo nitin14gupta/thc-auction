@@ -10,6 +10,7 @@ distinct bidder (a fresh order + a fresh deadline for them), or the listing
 is marked unsold if there's no one left to offer it to.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -120,10 +121,15 @@ def _handle_expired_order(db, order: dict) -> None:
         return
     listing = listing_res.data[0]
 
-    expired_buyer = _get_user(db, order["buyer_id"])
-    product_name = _get_product_name(db, listing)
-
-    next_bid = _next_distinct_bidder(db, listing["id"], order["buyer_id"])
+    # These three only depend on `listing`/`order`, already in hand — not on
+    # each other — so fetch them concurrently instead of one after another.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        buyer_future = pool.submit(_get_user, db, order["buyer_id"])
+        product_name_future = pool.submit(_get_product_name, db, listing)
+        next_bid_future = pool.submit(_next_distinct_bidder, db, listing["id"], order["buyer_id"])
+        expired_buyer = buyer_future.result()
+        product_name = product_name_future.result()
+        next_bid = next_bid_future.result()
 
     if next_bid:
         db.table("listings").update(
@@ -287,14 +293,25 @@ def verify_payment(
     if not razorpay_client.verify_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Payment verification failed.")
 
-    db.table("orders").update(
-        {"status": "paid", "razorpay_payment_id": razorpay_payment_id, "paid_at": _now().isoformat()}
-    ).eq("id", order_id).execute()
+    update_res = (
+        db.table("orders")
+        .update({"status": "paid", "razorpay_payment_id": razorpay_payment_id, "paid_at": _now().isoformat()})
+        .eq("id", order_id)
+        .execute()
+    )
+    updated_order = update_res.data[0]
 
-    listing_res = db.table("listings").select("*").eq("id", order["listing_id"]).limit(1).execute()
+    # Listing and buyer lookups are independent — no reason to wait for one
+    # before firing the other.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        listing_future = pool.submit(
+            lambda: db.table("listings").select("*").eq("id", order["listing_id"]).limit(1).execute()
+        )
+        buyer_future = pool.submit(_get_user, db, user_id)
+        listing_res = listing_future.result()
+        buyer = buyer_future.result()
     listing = listing_res.data[0] if listing_res.data else None
 
-    buyer = _get_user(db, user_id)
     if listing and buyer:
         product_name = _get_product_name(db, listing)
         try:
@@ -309,5 +326,4 @@ def verify_payment(
             except Exception:
                 pass
 
-    res = db.table("orders").select("*").eq("id", order_id).limit(1).execute()
-    return res.data[0]
+    return updated_order

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -44,10 +45,37 @@ def _get_photos(db, listing_id: str) -> list[dict]:
     return res.data or []
 
 
-def _hydrate(db, listing: dict) -> dict:
-    listing["photos"] = _get_photos(db, listing["id"])
+def _batch_fetch_photos(db, listing_ids: list[str]) -> dict[str, list[dict]]:
+    by_listing: dict[str, list[dict]] = {lid: [] for lid in listing_ids}
+    if not listing_ids:
+        return by_listing
+    res = (
+        db.table("listing_photos")
+        .select("id, url, sort_order, listing_id")
+        .in_("listing_id", listing_ids)
+        .order("sort_order")
+        .execute()
+    )
+    for photo in res.data or []:
+        by_listing.setdefault(photo["listing_id"], []).append(photo)
+    return by_listing
+
+
+def _hydrate(db, listing: dict, photos: list[dict] | None = None) -> dict:
+    listing_id = listing["id"]
+    if photos is None:
+        # Photos and bids are independent reads — fetch concurrently.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            photos_future = pool.submit(_get_photos, db, listing_id)
+            bids_future = pool.submit(auction_service.batch_fetch_bids, db, [listing_id])
+            photos = photos_future.result()
+            bids_map = bids_future.result()
+    else:
+        bids_map = auction_service.batch_fetch_bids(db, [listing_id])
+
+    listing["photos"] = photos
     listing["suggested_bid_prices"] = get_suggested_bid_prices(listing.get("base_price"))
-    auction_service.sync_auction_status(db, listing)
+    auction_service.sync_auction_status(db, listing, bids=bids_map.get(listing_id, []))
     return listing
 
 
@@ -86,15 +114,16 @@ def create_listing(user_id: str, product_id: str) -> dict:
 
 def update_listing(user_id: str, listing_id: str, patch: dict) -> dict:
     db = get_supabase_client()
-    _get_owned_listing(db, listing_id, user_id)
+    listing = _get_owned_listing(db, listing_id, user_id)
 
     update_fields = {k: v for k, v in patch.items() if v is not None}
     if update_fields:
         update_fields["updated_at"] = _now()
-        db.table("listings").update(update_fields).eq("id", listing_id).execute()
+        # update() already returns the updated row — no need for a follow-up SELECT.
+        res = db.table("listings").update(update_fields).eq("id", listing_id).execute()
+        listing = res.data[0]
 
-    res = db.table("listings").select("*").eq("id", listing_id).limit(1).execute()
-    return _hydrate(db, res.data[0])
+    return _hydrate(db, listing)
 
 
 def get_listing(user_id: str, listing_id: str) -> dict:
@@ -115,23 +144,20 @@ def list_my_listings(user_id: str, status_filter: str | None = None, page: int =
     total = res.count or 0
 
     listing_ids = [listing["id"] for listing in listings]
-    photos_by_listing: dict[str, list[dict]] = {lid: [] for lid in listing_ids}
-    if listing_ids:
-        photos_res = (
-            db.table("listing_photos")
-            .select("id, url, sort_order, listing_id")
-            .in_("listing_id", listing_ids)
-            .order("sort_order")
-            .execute()
-        )
-        for photo in photos_res.data or []:
-            photos_by_listing.setdefault(photo["listing_id"], []).append(photo)
+
+    # Photos and bids are independent queries — run them concurrently instead
+    # of back-to-back (each Supabase round trip costs real wall-clock time).
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        photos_future = pool.submit(_batch_fetch_photos, db, listing_ids)
+        bids_future = pool.submit(auction_service.batch_fetch_bids, db, listing_ids)
+        photos_by_listing = photos_future.result()
+        bids_by_listing = bids_future.result()
 
     items = []
     for listing in listings:
         listing["photos"] = photos_by_listing.get(listing["id"], [])
         listing["suggested_bid_prices"] = get_suggested_bid_prices(listing.get("base_price"))
-        auction_service.sync_auction_status(db, listing)
+        auction_service.sync_auction_status(db, listing, bids=bids_by_listing.get(listing["id"], []))
         items.append(listing)
 
     return {"items": items, "total": total, "page": page, "page_size": page_size}
@@ -168,8 +194,9 @@ def browse_listings(
     res = query.execute()
     rows = res.data or []
 
+    bids_by_listing = auction_service.batch_fetch_bids(db, [r["id"] for r in rows])
     for r in rows:
-        auction_service.sync_auction_status(db, r)
+        auction_service.sync_auction_status(db, r, bids=bids_by_listing.get(r["id"], []))
     rows = [r for r in rows if r.get("auction_status") == target_status]
 
     if category:
@@ -255,8 +282,12 @@ def delete_listing(user_id: str, listing_id: str) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Accepted listings can't be deleted.")
 
     photos_res = db.table("listing_photos").select("r2_path").eq("listing_id", listing_id).execute()
-    for photo in photos_res.data or []:
-        r2_client.delete_file(photo["r2_path"])
+    r2_paths = [photo["r2_path"] for photo in (photos_res.data or [])]
+    if r2_paths:
+        # Each is an independent external R2 call — up to 12 of them for a
+        # full photo set, so fire them concurrently rather than one-by-one.
+        with ThreadPoolExecutor(max_workers=min(len(r2_paths), 8)) as pool:
+            list(pool.map(r2_client.delete_file, r2_paths))
 
     # listing_photos rows cascade-delete via the FK, no need to delete them separately.
     db.table("listings").delete().eq("id", listing_id).execute()
@@ -279,30 +310,57 @@ def reorder_photos(user_id: str, listing_id: str, photo_ids: list[str]) -> list[
     db = get_supabase_client()
     _get_owned_listing(db, listing_id, user_id)
 
-    for index, photo_id in enumerate(photo_ids):
+    # Each photo's sort_order update is an independent write — fire them
+    # concurrently instead of one-by-one (up to 12 sequential round trips).
+    def _update(index: int, photo_id: str):
         db.table("listing_photos").update({"sort_order": index}).eq("id", photo_id).eq(
             "listing_id", listing_id
         ).execute()
+
+    with ThreadPoolExecutor(max_workers=min(len(photo_ids), 8) or 1) as pool:
+        list(pool.map(lambda pair: _update(*pair), enumerate(photo_ids)))
 
     return _get_photos(db, listing_id)
 
 
 def _get_seller_and_product(db, listing: dict) -> tuple[dict | None, dict | None]:
-    seller_res = db.table("users").select("id, name, email").eq("id", listing["seller_id"]).limit(1).execute()
+    if not listing.get("product_id"):
+        seller_res = db.table("users").select("id, name, email").eq("id", listing["seller_id"]).limit(1).execute()
+        return (seller_res.data[0] if seller_res.data else None), None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        seller_future = pool.submit(
+            lambda: db.table("users").select("id, name, email").eq("id", listing["seller_id"]).limit(1).execute()
+        )
+        product_future = pool.submit(
+            lambda: db.table("products").select("name").eq("id", listing["product_id"]).limit(1).execute()
+        )
+        seller_res = seller_future.result()
+        product_res = product_future.result()
+
     seller = seller_res.data[0] if seller_res.data else None
-
-    product = None
-    if listing.get("product_id"):
-        product_res = db.table("products").select("name").eq("id", listing["product_id"]).limit(1).execute()
-        product = product_res.data[0] if product_res.data else None
-
+    product = product_res.data[0] if product_res.data else None
     return seller, product
 
 
 def submit_listing(user_id: str, listing_id: str) -> dict:
     db = get_supabase_client()
-    listing = _get_owned_listing(db, listing_id, user_id)
-    photos = _get_photos(db, listing_id)
+
+    # Ownership and photos both only need listing_id — fetch concurrently,
+    # then check ownership from the result.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        listing_future = pool.submit(
+            lambda: db.table("listings").select("*").eq("id", listing_id).limit(1).execute()
+        )
+        photos_future = pool.submit(_get_photos, db, listing_id)
+        listing_res = listing_future.result()
+        photos = photos_future.result()
+
+    if not listing_res.data:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Listing not found.")
+    listing = listing_res.data[0]
+    if listing["seller_id"] != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not own this listing.")
 
     missing = []
     if not listing.get("product_id"):
@@ -320,12 +378,13 @@ def submit_listing(user_id: str, listing_id: str) -> dict:
             f"Listing is incomplete: missing {', '.join(missing)}.",
         )
 
-    db.table("listings").update(
-        {"status": "pending_review", "submitted_at": _now(), "updated_at": _now()}
-    ).eq("id", listing_id).execute()
-
-    res = db.table("listings").select("*").eq("id", listing_id).limit(1).execute()
-    updated = res.data[0]
+    update_res = (
+        db.table("listings")
+        .update({"status": "pending_review", "submitted_at": _now(), "updated_at": _now()})
+        .eq("id", listing_id)
+        .execute()
+    )
+    updated = update_res.data[0]
 
     seller, product = _get_seller_and_product(db, updated)
     if seller:
@@ -336,7 +395,7 @@ def submit_listing(user_id: str, listing_id: str) -> dict:
         except Exception:
             pass  # Email delivery failures shouldn't block a successful submission.
 
-    return _hydrate(db, updated)
+    return _hydrate(db, updated, photos=photos)
 
 
 def review_listing(listing_id: str, action: str) -> dict:
@@ -350,12 +409,13 @@ def review_listing(listing_id: str, action: str) -> dict:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only listings pending review can be reviewed.")
 
     new_status = "accepted" if action == "accept" else "rejected"
-    db.table("listings").update({"status": new_status, "reviewed_at": _now(), "updated_at": _now()}).eq(
-        "id", listing_id
-    ).execute()
-
-    res = db.table("listings").select("*").eq("id", listing_id).limit(1).execute()
-    updated = res.data[0]
+    update_res = (
+        db.table("listings")
+        .update({"status": new_status, "reviewed_at": _now(), "updated_at": _now()})
+        .eq("id", listing_id)
+        .execute()
+    )
+    updated = update_res.data[0]
 
     if new_status == "accepted":
         auction_service.sync_auction_status(db, updated)
@@ -378,6 +438,7 @@ def review_listing(listing_id: str, action: str) -> dict:
 
 
 def get_auction_detail(viewer_id: str, listing_id: str) -> dict:
+    from services import analytics_service
     from services.product_service import _first_image_url
 
     db = get_supabase_client()
@@ -394,12 +455,30 @@ def get_auction_detail(viewer_id: str, listing_id: str) -> dict:
     if listing["status"] != "accepted":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "This auction isn't available.")
 
-    auction_service.sync_auction_status(db, listing)
+    is_owner = listing["seller_id"] == viewer_id
 
-    if listing["seller_id"] != viewer_id:
-        from services import analytics_service
+    # None of these five depend on each other — only on listing_id/seller_id/
+    # viewer_id, all already known. This is the endpoint the frontend polls
+    # every few seconds while an auction page is open, so collapsing 6
+    # sequential round trips into 1 matters a lot here.
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        bids_future = pool.submit(auction_service.batch_fetch_bids, db, [listing_id])
+        seller_future = pool.submit(
+            lambda: db.table("users").select("id, name, avatar_url").eq("id", listing["seller_id"]).limit(1).execute()
+        )
+        watch_count_future = pool.submit(analytics_service.get_watch_count, db, listing_id)
+        is_watching_future = pool.submit(analytics_service.is_watching, db, listing_id, viewer_id)
+        photos_future = pool.submit(_get_photos, db, listing_id)
+        if not is_owner:
+            pool.submit(analytics_service.increment_view_count, db, listing)
 
-        analytics_service.increment_view_count(db, listing)
+        bids_map = bids_future.result()
+        seller_res = seller_future.result()
+        watch_count = watch_count_future.result()
+        is_watching = is_watching_future.result()
+        photos = photos_future.result()
+
+    auction_service.sync_auction_status(db, listing, bids=bids_map.get(listing_id, []))
 
     p = listing.get("products")
     product = None
@@ -414,16 +493,8 @@ def get_auction_detail(viewer_id: str, listing_id: str) -> dict:
         }
 
     bids = sorted(listing.get("_bids") or [], key=lambda b: b["created_at"], reverse=True)
-
-    seller_res = db.table("users").select("id, name, avatar_url").eq("id", listing["seller_id"]).limit(1).execute()
     seller = seller_res.data[0] if seller_res.data else None
-
     current = auction_service.current_price(listing)
-
-    from services import analytics_service
-
-    watch_count = analytics_service.get_watch_count(db, listing_id)
-    is_watching = analytics_service.is_watching(db, listing_id, viewer_id)
 
     return {
         "id": listing["id"],
@@ -431,7 +502,7 @@ def get_auction_detail(viewer_id: str, listing_id: str) -> dict:
         "variant_size": listing.get("variant_size"),
         "condition_grade": listing.get("condition_grade"),
         "condition_notes": listing.get("condition_notes"),
-        "photos": _get_photos(db, listing_id),
+        "photos": photos,
         "starting_price": listing.get("bid_price"),
         "current_price": current,
         "min_next_bid": current + 1,
@@ -456,33 +527,42 @@ def get_related_listings(viewer_id: str, listing_id: str, limit: int = 4) -> lis
     from services.product_service import _first_image_url
 
     db = get_supabase_client()
-    res = (
-        db.table("listings")
-        .select("id, product_id, seller_id, products(product_type)")
-        .eq("id", listing_id)
-        .limit(1)
-        .execute()
-    )
+
+    # The candidates query only filters on listing_id/viewer_id (both already
+    # known) — it doesn't need anything from the source-listing lookup, which
+    # is only used for Python-side filtering afterward. Run both concurrently.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        source_future = pool.submit(
+            lambda: db.table("listings")
+            .select("id, product_id, seller_id, products(product_type)")
+            .eq("id", listing_id)
+            .limit(1)
+            .execute()
+        )
+        candidates_future = pool.submit(
+            lambda: db.table("listings")
+            .select(
+                "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
+                "status, seller_id, products(id, name, brand, images, price, product_type)"
+            )
+            .eq("status", "accepted")
+            .neq("id", listing_id)
+            .neq("seller_id", viewer_id)
+            .not_.is_("auction_start_at", "null")
+            .execute()
+        )
+        res = source_future.result()
+        candidates_res = candidates_future.result()
+
     if not res.data:
         return []
     source = res.data[0]
     category = (source.get("products") or {}).get("product_type")
 
-    candidates_res = (
-        db.table("listings")
-        .select(
-            "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
-            "status, seller_id, products(id, name, brand, images, price, product_type)"
-        )
-        .eq("status", "accepted")
-        .neq("id", listing_id)
-        .neq("seller_id", viewer_id)
-        .not_.is_("auction_start_at", "null")
-        .execute()
-    )
     rows = candidates_res.data or []
+    bids_by_listing = auction_service.batch_fetch_bids(db, [r["id"] for r in rows])
     for r in rows:
-        auction_service.sync_auction_status(db, r)
+        auction_service.sync_auction_status(db, r, bids=bids_by_listing.get(r["id"], []))
     rows = [r for r in rows if r.get("auction_status") in ("live", "scheduled")]
 
     # Prefer same seller first, then same category, to surface a coherent

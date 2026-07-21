@@ -1,4 +1,5 @@
 import random
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import HTTPException, status
 
@@ -59,17 +60,26 @@ def search_products(query: str, limit: int = 20, category: str | None = None) ->
 
 def get_product(product_id: str) -> dict:
     db = get_supabase_client()
-    res = db.table("products").select(DETAIL_COLUMNS).eq("id", product_id).limit(1).execute()
+
+    # The variants query only needs product_id (already known from the caller),
+    # not anything from the product-detail query's result — so there's no
+    # reason to wait for one before firing the other.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        product_future = pool.submit(
+            lambda: db.table("products").select(DETAIL_COLUMNS).eq("id", product_id).limit(1).execute()
+        )
+        variants_future = pool.submit(
+            lambda: db.table("product_variants")
+            .select("id, size, shipping_mode, sale_price, compare_at_price")
+            .eq("product_id", product_id)
+            .execute()
+        )
+        res = product_future.result()
+        variants_res = variants_future.result()
+
     if not res.data:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Product not found.")
     product = res.data[0]
-
-    variants_res = (
-        db.table("product_variants")
-        .select("id, size, shipping_mode, sale_price, compare_at_price")
-        .eq("product_id", product_id)
-        .execute()
-    )
     product["variants"] = variants_res.data or []
     product["images"] = product.get("images") or []
     return product
