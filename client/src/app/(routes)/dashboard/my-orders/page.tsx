@@ -15,18 +15,20 @@ import type { Order, OrderStatus } from "@/types/order";
 const PAGE_SIZE = 10;
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending_payment: "Payment due",
+  pending_payment: "Unpaid",
   paid: "Paid",
   expired: "Expired",
   cancelled: "Cancelled",
 };
 
 const STATUS_CLASSES: Record<OrderStatus, string> = {
-  pending_payment: "text-gold",
-  paid: "text-emerald-600",
-  expired: "text-red-urgent",
-  cancelled: "text-muted-on-sand",
+  pending_payment: "bg-gold/15 text-gold",
+  paid: "bg-emerald-600/10 text-emerald-600",
+  expired: "bg-red-urgent/10 text-red-urgent",
+  cancelled: "bg-ink-on-sand/10 text-muted-on-sand",
 };
+
+const POLL_INTERVAL_MS = 20_000;
 
 export default function MyOrdersPage() {
   const { authFetch, user } = useAuth();
@@ -56,8 +58,10 @@ export default function MyOrdersPage() {
     }
 
     load();
+    const interval = setInterval(load, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [authFetch, page, reloadKey]);
 
@@ -143,11 +147,13 @@ function OrderRow({ order, isPaying, onPay }: { order: Order; isPaying: boolean;
         <p className="truncate font-[family-name:var(--font-barlow)] text-sm font-medium text-ink-on-sand">
           {order.product?.name ?? order.id}
         </p>
-        <p className="font-[family-name:var(--font-barlow)] text-xs text-muted-on-sand">
-          ₹{order.amount.toLocaleString("en-IN")} ·{" "}
-          <span className={STATUS_CLASSES[order.status]}>{STATUS_LABELS[order.status]}</span>
-          {order.status === "pending_payment" && countdown.label ? ` · ${countdown.label} left` : ""}
-          {order.status === "paid" && order.paid_at ? ` · Paid ${formatLocalDateTime(order.paid_at)}` : ""}
+        <p className="mt-1 flex flex-wrap items-center gap-1.5 font-[family-name:var(--font-barlow)] text-xs text-muted-on-sand">
+          ₹{order.amount.toLocaleString("en-IN")}
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-semibold ${STATUS_CLASSES[order.status]}`}>
+            {STATUS_LABELS[order.status]}
+          </span>
+          {order.status === "pending_payment" && countdown.label ? `· ${countdown.label} left` : ""}
+          {order.status === "paid" && order.paid_at ? `· Paid ${formatLocalDateTime(order.paid_at)}` : ""}
         </p>
       </div>
 
@@ -158,8 +164,13 @@ function OrderRow({ order, isPaying, onPay }: { order: Order; isPaying: boolean;
           disabled={isPaying}
           className="shrink-0 rounded-md bg-ink-on-sand px-4 py-2 font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase text-paper disabled:opacity-50"
         >
-          {isPaying ? "Opening..." : "Pay Now"}
+          {isPaying ? "Opening..." : "Unpaid — Pay Now"}
         </button>
+      )}
+      {order.status === "paid" && (
+        <span className="shrink-0 rounded-md border border-emerald-600/30 px-4 py-2 font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase text-emerald-600">
+          Paid
+        </span>
       )}
     </div>
   );

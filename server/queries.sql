@@ -255,3 +255,17 @@ create table if not exists public.payouts (
 
 create index if not exists idx_payouts_seller_id on public.payouts (seller_id);
 create index if not exists idx_payouts_listing_id on public.payouts (listing_id);
+
+-- Prevents an admin double-paying out the same sale (one payout per listing).
+create unique index if not exists idx_payouts_one_per_listing on public.payouts (listing_id);
+
+-- ============================================================
+-- Escalating payment-window reminders (30 / 15 / 5 minutes left).
+-- Nullable timestamp = "not sent yet"; set once sent so a background sweep
+-- (see services/order_service.sweep_pending_orders, run every ~60s from
+-- main.py's startup task) never sends the same reminder twice.
+-- ============================================================
+
+alter table public.orders add column if not exists reminder_30_sent_at timestamptz;
+alter table public.orders add column if not exists reminder_15_sent_at timestamptz;
+alter table public.orders add column if not exists reminder_5_sent_at timestamptz;

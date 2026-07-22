@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
-from routes.auth_routes import get_current_user
+from routes.auth_routes import get_current_user, require_admin
 from schemas.analytics import WatchToggleOut
 from schemas.listing import (
     AuctionDetailOut,
@@ -19,12 +19,6 @@ from services import analytics_service, listing_service
 from utils.image_utils import MAX_UPLOAD_BYTES
 
 router = APIRouter(prefix="/listings", tags=["listings"])
-
-
-def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
-    if not current_user.get("is_admin"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required.")
-    return current_user
 
 
 @router.post("", response_model=ListingOut, status_code=status.HTTP_201_CREATED)

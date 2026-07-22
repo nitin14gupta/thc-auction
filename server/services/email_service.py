@@ -83,6 +83,19 @@ You have {deadline_minutes} minutes to complete payment, or the item goes to the
     _send(to_email, subject, body)
 
 
+def send_payment_reminder_email(to_email: str, name: str, product_name: str, minutes_remaining: int) -> None:
+    subject = f"{minutes_remaining} minutes left to pay for \"{product_name}\""
+    body = f"""Hi {name},
+
+Reminder — you have about {minutes_remaining} minutes left to complete payment for "{product_name}" before it goes to the next highest bidder.
+
+Head to My Orders on HYPE. to pay now.
+
+— HYPE.
+"""
+    _send(to_email, subject, body)
+
+
 def send_payment_expired_reassigned_email(to_email: str, name: str, product_name: str) -> None:
     subject = f"Your payment window for \"{product_name}\" has expired"
     body = f"""Hi {name},

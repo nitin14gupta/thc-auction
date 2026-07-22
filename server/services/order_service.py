@@ -20,9 +20,19 @@ from db.config import get_supabase_client
 
 PAYMENT_WINDOW = timedelta(minutes=settings.PAYMENT_WINDOW_MINUTES)
 
+# Escalating reminders as the payment window runs out. Checked (a) lazily,
+# whenever an order is read, and (b) proactively by a background sweep every
+# ~60s (see sweep_pending_orders + main.py's startup task) so a reminder
+# still fires even if nobody has the page open.
+REMINDER_MINUTES = (30, 15, 5)
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _reminder_column(minutes: int) -> str:
+    return f"reminder_{minutes}_sent_at"
 
 
 def _get_user(db, user_id: str) -> dict | None:
@@ -165,12 +175,54 @@ def _handle_expired_order(db, order: dict) -> None:
                 pass
 
 
+def _send_reminder_email(db, order: dict, minutes: int) -> None:
+    from services.email_service import send_payment_reminder_email
+
+    buyer = _get_user(db, order["buyer_id"])
+    listing_res = db.table("listings").select("*").eq("id", order["listing_id"]).limit(1).execute()
+    listing = listing_res.data[0] if listing_res.data else None
+    if not buyer or not listing:
+        return
+    product_name = _get_product_name(db, listing)
+    try:
+        send_payment_reminder_email(buyer["email"], buyer["name"], product_name, minutes)
+    except Exception:
+        pass
+
+
+def _maybe_send_reminders(db, order: dict, remaining: timedelta) -> None:
+    for minutes in REMINDER_MINUTES:
+        column = _reminder_column(minutes)
+        if order.get(column):
+            continue
+        if remaining > timedelta(minutes=minutes):
+            continue
+
+        # Optimistic lock: WHERE column IS NULL means only the first caller
+        # to cross this threshold actually flips it and sends the email —
+        # the lazy read-triggered check and the 60s background sweep can
+        # both land on the same order without double-sending.
+        res = (
+            db.table("orders")
+            .update({column: _now().isoformat()})
+            .eq("id", order["id"])
+            .is_(column, "null")
+            .execute()
+        )
+        if res.data:
+            order[column] = res.data[0][column]
+            _send_reminder_email(db, order, minutes)
+
+
 def sync_order_status(db, order: dict) -> dict:
     if order.get("status") != "pending_payment":
         return order
 
     deadline = datetime.fromisoformat(order["payment_deadline"])
-    if _now() < deadline:
+    remaining = deadline - _now()
+
+    if remaining.total_seconds() > 0:
+        _maybe_send_reminders(db, order, remaining)
         return order
 
     # Optimistic concurrency: WHERE status='pending_payment' means only the
@@ -327,3 +379,19 @@ def verify_payment(
                 pass
 
     return updated_order
+
+
+def sweep_pending_orders() -> int:
+    """Proactively checks every pending order for reminder thresholds and
+    expiry, instead of waiting for someone to load a page that happens to
+    read that order. Called on a timer from main.py's startup task. Returns
+    the number of orders checked, for logging."""
+    db = get_supabase_client()
+    res = db.table("orders").select("*").eq("status", "pending_payment").execute()
+    orders = res.data or []
+    for order in orders:
+        try:
+            sync_order_status(db, order)
+        except Exception:
+            pass  # One bad order shouldn't stop the rest of the sweep.
+    return len(orders)

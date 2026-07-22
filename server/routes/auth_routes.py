@@ -40,7 +40,13 @@ def _access_token_response(access_token: str, user: dict) -> AccessTokenResponse
     return AccessTokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=UserOut(id=user["id"], name=user["name"], email=user["email"], avatar_url=user.get("avatar_url")),
+        user=UserOut(
+            id=user["id"],
+            name=user["name"],
+            email=user["email"],
+            avatar_url=user.get("avatar_url"),
+            is_admin=bool(user.get("is_admin")),
+        ),
     )
 
 
@@ -50,6 +56,12 @@ def get_current_user(
     if not credentials:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated.")
     return auth_service.get_current_user(credentials.credentials)
+
+
+def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    if not current_user.get("is_admin"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required.")
+    return current_user
 
 
 @router.post("/register", response_model=AccessTokenResponse, status_code=status.HTTP_201_CREATED)
@@ -95,6 +107,7 @@ def me(current_user: dict = Depends(get_current_user)):
         name=current_user["name"],
         email=current_user["email"],
         avatar_url=current_user.get("avatar_url"),
+        is_admin=bool(current_user.get("is_admin")),
     )
 
 
@@ -105,7 +118,13 @@ async def update_avatar(file: UploadFile = File(...), current_user: dict = Depen
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Image exceeds the 8MB limit.")
 
     user = auth_service.update_avatar(current_user["id"], raw)
-    return UserOut(id=user["id"], name=user["name"], email=user["email"], avatar_url=user.get("avatar_url"))
+    return UserOut(
+        id=user["id"],
+        name=user["name"],
+        email=user["email"],
+        avatar_url=user.get("avatar_url"),
+        is_admin=bool(user.get("is_admin")),
+    )
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
