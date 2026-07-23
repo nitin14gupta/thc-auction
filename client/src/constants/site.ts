@@ -1,9 +1,7 @@
 export const navLinks = [
-  { label: "Auctions", href: "/auctions" },
-  { label: "Live", href: "/live" },
+  { label: "Auctions", href: "/live" },
   { label: "Upcoming", href: "/upcoming" },
   { label: "Sold", href: "/sold" },
-  { label: "Categories", href: "/categories" },
 ] as const;
 
 export const stats = [
