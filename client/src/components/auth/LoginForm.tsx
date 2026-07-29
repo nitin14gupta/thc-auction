@@ -39,14 +39,14 @@ export function LoginForm() {
 
   return (
     <>
-      <h1 className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-extrabold uppercase tracking-tight text-paper">
+      <h1 className="font-[family-name:var(--font-barlow-condensed)] text-5xl font-extrabold uppercase tracking-tight text-paper">
         Sign In
       </h1>
-      <p className="mt-2 font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
+      <p className="mt-2 font-[family-name:var(--font-barlow)] text-xl text-gray-on-dark">
         Welcome back. Log in to keep bidding.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
+      <form onSubmit={handleSubmit} className="mt-10 flex flex-col gap-6">
         <FormError message={error} />
 
         <FormField
