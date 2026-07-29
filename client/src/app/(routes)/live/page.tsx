@@ -8,15 +8,15 @@ import { AuctionBrowseView } from "@/components/auctions/AuctionBrowseView";
 export default function LivePage() {
   return (
     <RequireAuth>
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-screen flex-col bg-sand">
         <Navbar />
-        <div className="flex-1">
+        <main className="flex-1">
           <AuctionBrowseView
             scope="live"
             title="Live Auctions"
-            subtitle="Bidding is open right now — jump in before time runs out."
+            subtitle="Fixed price and Buy Now listings."
           />
-        </div>
+        </main>
         <Footer />
       </div>
     </RequireAuth>

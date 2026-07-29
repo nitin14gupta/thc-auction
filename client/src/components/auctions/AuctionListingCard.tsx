@@ -22,9 +22,9 @@ export function AuctionListingCard({ listing, scope }: { listing: BrowseListing;
   return (
     <Link
       href={`/${scope}/${listing.id}`}
-      className="flex flex-col overflow-hidden rounded-lg border border-white/10 bg-ink transition-transform hover:-translate-y-0.5"
+      className="flex flex-col overflow-hidden rounded-lg border border-white/10 bg-ink transition-transform duration-200 hover:-translate-y-0.5 hover:border-gold/50"
     >
-      <div className="relative aspect-square w-full bg-white/5">
+      <div className="relative aspect-[4/3] w-full">
         {product?.image_url && (
           <Image
             src={product.image_url}
@@ -36,7 +36,7 @@ export function AuctionListingCard({ listing, scope }: { listing: BrowseListing;
           />
         )}
         <span
-          className={`absolute left-2 top-2 rounded-full px-2 py-0.5 font-[family-name:var(--font-barlow)] text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}
+          className={`absolute left-2 top-2 rounded px-2 py-0.5 font-[family-name:var(--font-barlow)] text-[10px] font-bold uppercase tracking-wider ${badge.className}`}
         >
           {badge.label}
         </span>
@@ -51,8 +51,8 @@ export function AuctionListingCard({ listing, scope }: { listing: BrowseListing;
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 p-3">
-        <h3 className="line-clamp-2 font-[family-name:var(--font-barlow)] text-sm font-medium text-paper">
+      <div className="flex flex-1 flex-col gap-3 px-4 py-4">
+        <h3 className="line-clamp-2 font-[family-name:var(--font-barlow)] text-base font-medium text-paper">
           {product?.name ?? "—"}
         </h3>
         <p className="font-[family-name:var(--font-barlow)] text-xs text-gray-on-dark">
@@ -60,12 +60,12 @@ export function AuctionListingCard({ listing, scope }: { listing: BrowseListing;
           {listing.variant_size ? ` · ${listing.variant_size}` : ""}
         </p>
 
-        <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-2">
-          <span className="font-[family-name:var(--font-barlow-condensed)] text-lg font-bold text-paper">
+        <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-3">
+          <span className="font-[family-name:var(--font-barlow-condensed)] text-xl font-bold text-paper">
             {listing.bid_price != null ? `₹${listing.bid_price.toLocaleString("en-IN")}` : "—"}
           </span>
         </div>
-        <p className="font-[family-name:var(--font-barlow)] text-[11px] text-gray-on-dark">
+        <p className="font-[family-name:var(--font-barlow)] text-xs text-gray-on-dark">
           {scope === "live" ? (listing.bid_count > 0 ? `${listing.bid_count} bid${listing.bid_count === 1 ? "" : "s"}` : "No bids yet") : null}
           {scope === "upcoming" ? `Starts ${formatLocalDateTime(listing.auction_start_at)}` : null}
           {scope === "sold" ? `Sold ${formatLocalDateTime(listing.auction_start_at)}` : null}
