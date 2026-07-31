@@ -16,10 +16,10 @@ export function FormField({ label, error, id, className = "", ...props }: FormFi
       </label>
       <input
         id={id}
-        className={`h-12 w-full rounded-md border bg-transparent px-4 font-[family-name:var(--font-barlow)] text-sm text-paper placeholder:text-gray-on-dark focus:outline-none focus:ring-1 ${
+        className={`h-12 w-full rounded-md border bg-[#ffffff]/10 px-4 font-[family-name:var(--font-barlow)] text-sm text-paper placeholder:text-gray-on-dark focus:outline-none focus:ring-1 ${
           error
             ? "border-red-urgent focus:ring-red-urgent"
-            : "border-white/20 focus:border-tan focus:ring-tan"
+            : "border-[#aaaaaa]/50 focus:border-tan focus:ring-tan"
         } ${className}`}
         {...props}
       />

@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { Container } from "@/components/ui/Container";
 import { footerBrand, footerColumns } from "@/constants/site";
 
 export function Footer() {
   return (
-    <footer className="bg-ink py-14">
-      <Container className="flex flex-col gap-12 lg:flex-row lg:justify-between">
+    <footer className="bg-ink px-6 py-14 md:px-10 xl:px-16">
+      <div className="flex flex-col gap-12 lg:flex-row lg:justify-between">
         <div className="max-w-xs">
           <p className="font-[family-name:var(--font-barlow-condensed)] text-2xl font-bold uppercase tracking-tight text-paper">
             {footerBrand.name}
@@ -63,7 +62,7 @@ export function Footer() {
             </div>
           </div>
         </div>
-      </Container>
+      </div>
     </footer>
   );
 }

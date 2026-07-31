@@ -1,4 +1,3 @@
-import { Container } from "@/components/ui/Container";
 import { howItWorksSteps } from "@/constants/site";
 
 const icons = {
@@ -9,43 +8,59 @@ const icons = {
 
 export function HowItWorks() {
   return (
-    <section className="bg-sand py-16 sm:py-20">
-      <Container>
-        <h2 className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-extrabold uppercase tracking-tight text-ink-on-sand sm:text-4xl">
-          How It Works
-        </h2>
+    <section className="bg-sand px-6 py-20 sm:py-24 md:px-10 xl:px-16">
+      <h2 className="font-[family-name:var(--font-barlow-condensed)] text-4xl font-extrabold uppercase tracking-tight text-ink-on-sand sm:text-5xl">
+        How It Works
+      </h2>
 
-        <div className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-6">
-          {howItWorksSteps.map((step, index) => {
-            const Icon = icons[step.icon];
-            return (
-              <div key={step.number} className="relative flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-ink-on-sand/25">
-                  <Icon className="h-6 w-6 text-ink-on-sand" />
+      <div className="mt-16 grid grid-cols-1 items-start gap-12 sm:grid-cols-3 sm:gap-x-12 sm:gap-y-0">
+        {howItWorksSteps.map((step, index) => {
+          const Icon = icons[step.icon];
+          return (
+            <div key={step.number} className="group/step relative">
+              <div className="flex items-start gap-6">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-ink-on-sand/25 transition-colors duration-300 group-hover/step:border-gold/40">
+                  <Icon className="h-8 w-8 text-ink-on-sand" />
                 </div>
 
                 <div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-bold text-ink-on-sand">
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-[family-name:var(--font-barlow-condensed)] text-5xl font-bold text-ink-on-sand">
                       {step.number}
                     </span>
-                    <span className="font-[family-name:var(--font-barlow)] text-base font-bold uppercase tracking-wide text-ink-on-sand">
+                    <span className="font-[family-name:var(--font-barlow)] text-xl font-bold uppercase tracking-wide text-ink-on-sand">
                       {step.title}
                     </span>
                   </div>
-                  <p className="mt-1 max-w-[220px] font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">
+                  <p className="mt-2 max-w-[280px] font-[family-name:var(--font-barlow)] text-base text-[#000000b3]">
                     {step.description}
                   </p>
                 </div>
-
-                {index < howItWorksSteps.length - 1 && (
-                  <ArrowRightIcon className="absolute -right-8 top-6 hidden h-6 w-6 text-ink-on-sand/50 sm:block" />
-                )}
               </div>
-            );
-          })}
-        </div>
-      </Container>
+
+              {index > 0 && (
+                <div className="pointer-events-none absolute right-[100%] top-10 hidden -translate-x-px sm:flex">
+                  <svg
+                    className="h-3 w-10 text-[#000000]"
+                    viewBox="0 0 32 8"
+                    fill="none"
+                  >
+                    <line
+                      x1="0"
+                      y1="4"
+                      x2="24"
+                      y2="4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    />
+                    <path d="M24 0L32 4L24 8V0Z" fill="currentColor" />
+                  </svg>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -83,14 +98,6 @@ function BoxIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function ArrowRightIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

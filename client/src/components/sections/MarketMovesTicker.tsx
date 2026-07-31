@@ -5,7 +5,7 @@ function TickerContent() {
     <div className="flex shrink-0 items-center gap-3 pr-3 font-[family-name:var(--font-barlow)] text-sm text-ink-on-sand">
       {marketMoves.map((item, index) => (
         <span key={index} className="flex items-center gap-3 whitespace-nowrap">
-          <span>{item}</span>
+          <span className="transition-colors duration-200 hover:text-ink-on-sand/80">{item}</span>
           <span className="text-ink-on-sand/40">•</span>
         </span>
       ))}
@@ -16,13 +16,13 @@ function TickerContent() {
 export function MarketMovesTicker() {
   return (
     <div className="border-y border-ink-on-sand/10 bg-sand">
-      <div className="mx-auto flex max-w-[1280px] items-center gap-6 px-6 py-4 md:px-10 xl:px-16">
+      <div className="mx-auto flex w-full items-center gap-6 px-6 py-4 md:px-10 xl:px-16">
         <span className="flex shrink-0 items-center gap-2 font-[family-name:var(--font-barlow)] text-sm font-semibold uppercase tracking-wide text-ink-on-sand">
           <BoltIcon className="h-4 w-4" />
           Market Moves
         </span>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="marquee-wrapper flex-1 overflow-hidden">
           <div className="animate-marquee flex w-max">
             <TickerContent />
             <TickerContent />

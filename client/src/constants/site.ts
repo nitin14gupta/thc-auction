@@ -1,7 +1,8 @@
 export const navLinks = [
-  { label: "Auctions", href: "/live" },
-  { label: "Upcoming", href: "/upcoming" },
-  { label: "Sold", href: "/sold" },
+  { label: "Home", href: "/" },
+  { label: "Live Auction", href: "/live" },
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
 ] as const;
 
 export const stats = [
@@ -12,7 +13,6 @@ export const stats = [
 
 export const filters = [
   { label: "Category", value: "Sneakers" },
-  { label: "Status", value: "Live" },
   { label: "Price", value: "Any" },
   { label: "Ending", value: "Anytime" },
   { label: "Sort By", value: "Ending Soon" },

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Container } from "@/components/ui/Container";
 import { subscribeToNewsletter } from "@/api/newsletterApi";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/types/auth";
@@ -28,9 +27,9 @@ export function Newsletter() {
   }
 
   return (
-    <section className="border-b border-white/10 bg-ink py-14">
-      <Container className="flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
-        <div>
+    <section className="border-b border-white/10 bg-ink px-6 py-14 md:px-10 xl:px-16">
+      <div className="flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
+        <div className="text-left">
           <h2 className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-extrabold uppercase tracking-tight text-paper sm:text-4xl">
             Stay Ahead of the Drop.
           </h2>
@@ -61,7 +60,7 @@ export function Newsletter() {
             <ArrowRightIcon className="h-5 w-5" />
           </button>
         </form>
-      </Container>
+      </div>
     </section>
   );
 }
