@@ -1,7 +1,6 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Hero } from "@/components/sections/Hero";
-import { FilterBar } from "@/components/sections/FilterBar";
 import { AuctionGrid } from "@/components/sections/AuctionGrid";
 import { HowItWorks } from "@/components/sections/HowItWorks";
 import { MarketMovesTicker } from "@/components/sections/MarketMovesTicker";
@@ -13,7 +12,6 @@ export default function Home() {
       <Navbar />
       <main className="flex-1">
         <Hero />
-        <FilterBar />
         <AuctionGrid />
         <HowItWorks />
         <MarketMovesTicker />

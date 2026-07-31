@@ -11,13 +11,6 @@ export const stats = [
   { icon: "volume", value: "₹2.4 CR+", label: "Total Volume" },
 ] as const;
 
-export const filters = [
-  { label: "Category", value: "Sneakers" },
-  { label: "Price", value: "Any" },
-  { label: "Ending", value: "Anytime" },
-  { label: "Sort By", value: "Ending Soon" },
-] as const;
-
 export const howItWorksSteps = [
   {
     number: "01",

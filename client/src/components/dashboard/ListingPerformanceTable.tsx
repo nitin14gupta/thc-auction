@@ -1,9 +1,17 @@
 "use client";
 
+import { useState } from "react";
+import { Pagination } from "@/components/ui/Pagination";
 import { downloadCsv } from "@/utils/csv";
 import type { ListingPerformanceRow } from "@/types/analytics";
 
+const PAGE_SIZE = 8;
+
 export function ListingPerformanceTable({ rows }: { rows: ListingPerformanceRow[] }) {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   function handleExport() {
     downloadCsv(
       "listing-performance.csv",
@@ -56,7 +64,7 @@ export function ListingPerformanceTable({ rows }: { rows: ListingPerformanceRow[
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {pageRows.map((row) => (
                 <tr key={row.listing_id} className="border-b border-ink-on-sand/5 last:border-b-0">
                   <td className="max-w-[200px] truncate px-2 py-2.5 font-[family-name:var(--font-barlow)] text-sm text-ink-on-sand">
                     {row.product_name}
@@ -87,6 +95,7 @@ export function ListingPerformanceTable({ rows }: { rows: ListingPerformanceRow[
               ))}
             </tbody>
           </table>
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} variant="light" />
         </div>
       )}
     </div>

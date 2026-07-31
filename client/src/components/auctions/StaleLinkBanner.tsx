@@ -29,7 +29,7 @@ export function StaleLinkBanner({
 
   return (
     <div className="mt-6 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gold/40 bg-gold/10 px-4 py-3">
-      <p className="font-[family-name:var(--font-barlow)] text-sm text-paper">{copy[auctionStatus]}</p>
+      <p className="font-[family-name:var(--font-barlow)] text-sm text-ink-on-sand">{copy[auctionStatus]}</p>
       {currentScope && (
         <Link
           href={`/${currentScope}/${id}`}

@@ -15,7 +15,7 @@ export function AuctionCountdownPanel({
   if (detail.auction_status === "scheduled") {
     return (
       <div className="flex items-center justify-between rounded-lg border border-gold/30 bg-gold/10 px-4 py-3">
-        <p className="font-[family-name:var(--font-barlow)] text-sm text-paper">Auction starts in</p>
+        <p className="font-[family-name:var(--font-barlow)] text-sm text-ink-on-sand">Auction starts in</p>
         <p className="font-[family-name:var(--font-barlow-condensed)] text-2xl font-extrabold tabular-nums text-gold">
           {countdown.label}
         </p>
@@ -38,12 +38,12 @@ export function AuctionCountdownPanel({
     ? "border-red-urgent/50 bg-red-urgent/10 animate-pulse"
     : hasBids
       ? "border-tan/30 bg-tan/10"
-      : "border-white/15 bg-white/5";
-  const numberClass = countdown.isUrgent ? "text-red-urgent" : hasBids ? "text-tan" : "text-paper";
+      : "border-ink-on-sand/15 bg-ink-on-sand/5";
+  const numberClass = countdown.isUrgent ? "text-red-urgent" : hasBids ? "text-tan" : "text-ink-on-sand";
 
   return (
     <div className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 transition-colors ${urgentClass}`}>
-      <p className="font-[family-name:var(--font-barlow)] text-sm text-paper">{label}</p>
+      <p className="font-[family-name:var(--font-barlow)] text-sm text-ink-on-sand">{label}</p>
       <p className={`font-[family-name:var(--font-barlow-condensed)] text-2xl font-extrabold tabular-nums ${numberClass}`}>
         {countdown.label}
       </p>

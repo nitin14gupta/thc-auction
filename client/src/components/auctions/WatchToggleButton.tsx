@@ -38,12 +38,12 @@ export function WatchToggleButton({
       onClick={handleClick}
       disabled={isSaving}
       className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase transition-colors disabled:opacity-50 ${
-        isWatching ? "border-gold bg-gold/10 text-gold" : "border-white/15 text-gray-on-dark hover:text-paper"
+        isWatching ? "border-gold bg-gold/10 text-gold" : "border-ink-on-sand/20 text-muted-on-sand hover:text-ink-on-sand"
       }`}
     >
       <BookmarkIcon className="h-3.5 w-3.5" filled={isWatching} />
       {isWatching ? "Watching" : "Watch"}
-      {watchCount > 0 && <span className="text-[10px] text-gray-on-dark">({watchCount})</span>}
+      {watchCount > 0 && <span className="text-[10px] text-muted-on-sand">({watchCount})</span>}
     </button>
   );
 }

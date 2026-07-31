@@ -142,7 +142,19 @@ export default function ContactPage() {
       {/* Body */}
       <section className="flex-1 bg-sand px-6 py-12 md:px-10 md:py-16">
         <div className="mx-auto max-w-screen-xl">
-          <div className="grid grid-cols-1 gap-12">
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-14">
+
+            {/* Image */}
+            <div className="hidden overflow-hidden rounded-xl lg:block">
+              <div className="flex h-full min-h-[520px] w-full items-center justify-center bg-tan">
+                <div className="flex flex-col items-center gap-3 text-ink-on-sand/40">
+                  <ImagePlaceholderIcon className="h-12 w-12" />
+                  <span className="font-[family-name:var(--font-barlow)] text-xs uppercase tracking-widest">
+                    Image
+                  </span>
+                </div>
+              </div>
+            </div>
 
             {/* Form */}
             <div>
@@ -153,7 +165,7 @@ export default function ContactPage() {
                     Message sent.
                   </p>
                   <p className="font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">
-                    We'll get back to you within 24 hours.
+                    We&apos;ll get back to you within 24 hours.
                   </p>
                   <button
                     onClick={() => setStatus("idle")}
@@ -163,7 +175,7 @@ export default function ContactPage() {
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
+                <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
                   {/* Full Name */}
                   <div className="flex flex-col gap-1.5">
                     <label
@@ -308,7 +320,7 @@ export default function ContactPage() {
                     <textarea
                       id="message"
                       name="message"
-                      rows={7}
+                      rows={4}
                       value={form.message}
                       onChange={handleChange}
                       onBlur={handleBlur}
@@ -378,6 +390,16 @@ function ChevronDownIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
       <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ImagePlaceholderIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
+      <path d="m3 15 5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

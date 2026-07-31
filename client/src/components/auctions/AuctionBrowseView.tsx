@@ -4,11 +4,11 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Pagination } from "@/components/ui/Pagination";
+import { AuctionListingCard } from "@/components/auctions/AuctionListingCard";
 import { AuctionListingCardSkeleton } from "@/components/auctions/AuctionListingCardSkeleton";
 import { EmptyAuctionState } from "@/components/auctions/EmptyAuctionState";
 import { useBrowseListings } from "@/hooks/useBrowseListings";
 import { useCountdown } from "@/hooks/useCountdown";
-import { formatLocalDateTime } from "@/utils/dateUtils";
 import type { AuctionScope, BrowseListing } from "@/types/listing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -38,9 +38,50 @@ const BADGE: Record<AuctionScope, { label: string; className: string }> = {
 // ─── Sidebar constants ────────────────────────────────────────────────────────
 
 const BRANDS = ["Nike", "Jordan", "Adidas", "New Balance", "Other"];
-const UK_SIZES = ["All", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18+", "17"];
-const CONDITIONS = ["All", "DS / Brand New", "Like New", "Very Good", "Good", "Fair"];
+const UK_SIZES = ["All", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18+"];
+const CONDITIONS: { value: string; label: string }[] = [
+  { value: "All", label: "All" },
+  { value: "DS", label: "DS / Brand New" },
+  { value: "VNDS", label: "VNDS / Like New" },
+  { value: "USED", label: "Used" },
+  { value: "BEAT", label: "Beat" },
+];
 const CATEGORY_OPTIONS = ["All Categories", "Sneakers", "Apparel", "Collectibles"];
+const MAX_PRICE_CEILING = 1000000;
+
+function extractSizeNumber(variantSize: string | null | undefined): number | null {
+  const match = (variantSize ?? "").match(/(\d+(\.\d+)?)/);
+  return match ? Math.floor(parseFloat(match[1])) : null;
+}
+
+function matchesFilters(
+  listing: BrowseListing,
+  { brand, sizes, conditions, maxPrice }: { brand: string | undefined; sizes: string[]; conditions: string[]; maxPrice: number }
+): boolean {
+  if (brand) {
+    const listingBrand = (listing.product?.brand ?? "").toLowerCase();
+    if (brand === "Other") {
+      const known = BRANDS.filter((b) => b !== "Other").map((b) => b.toLowerCase());
+      if (known.includes(listingBrand)) return false;
+    } else if (listingBrand !== brand.toLowerCase()) {
+      return false;
+    }
+  }
+
+  if (!sizes.includes("All")) {
+    const num = extractSizeNumber(listing.variant_size);
+    const sizeOk = sizes.some((s) => (s === "18+" ? num != null && num >= 18 : num === Number(s)));
+    if (!sizeOk) return false;
+  }
+
+  if (!conditions.includes("All") && !conditions.includes(listing.condition_grade ?? "")) {
+    return false;
+  }
+
+  if (listing.bid_price != null && listing.bid_price > maxPrice) return false;
+
+  return true;
+}
 
 // ─── Sidebar Filter ───────────────────────────────────────────────────────────
 
@@ -66,16 +107,29 @@ function Sidebar({
   setCategory,
   sort,
   setSort,
+  brand,
+  setBrand,
+  selectedSizes,
+  setSelectedSizes,
+  selectedConditions,
+  setSelectedConditions,
+  maxPrice,
+  setMaxPrice,
 }: {
   category: string | undefined;
   setCategory: (v: string | undefined) => void;
   sort: SortOption;
   setSort: (v: SortOption) => void;
+  brand: string | undefined;
+  setBrand: (v: string | undefined) => void;
+  selectedSizes: string[];
+  setSelectedSizes: (v: string[] | ((prev: string[]) => string[])) => void;
+  selectedConditions: string[];
+  setSelectedConditions: (v: string[] | ((prev: string[]) => string[])) => void;
+  maxPrice: number;
+  setMaxPrice: (v: number) => void;
 }) {
   const [brandSearch, setBrandSearch] = useState("");
-  const [selectedSizes, setSelectedSizes] = useState<string[]>(["All"]);
-  const [selectedConditions, setSelectedConditions] = useState<string[]>(["All"]);
-  const [maxPrice, setMaxPrice] = useState(750000);
 
   function toggleSize(size: string) {
     if (size === "All") { setSelectedSizes(["All"]); return; }
@@ -137,12 +191,32 @@ function Sidebar({
           />
         </div>
         <div className="flex flex-col gap-2">
-          {filteredBrands.map((brand) => (
-            <label key={brand} className="flex cursor-pointer items-center gap-3">
-              <input type="radio" name="brand" className="h-5 w-5 accent-ink-on-sand" />
-              <span className="flex-1 font-[family-name:var(--font-barlow)] text-base text-ink-on-sand/70">{brand}</span>
-            </label>
-          ))}
+          {brand && (
+            <button
+              type="button"
+              onClick={() => setBrand(undefined)}
+              className="self-start font-[family-name:var(--font-barlow)] text-xs font-medium text-gold underline"
+            >
+              Clear
+            </button>
+          )}
+          {filteredBrands.map((b) => {
+            const active = brand === b;
+            return (
+              <label key={b} className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="radio"
+                  name="brand"
+                  checked={active}
+                  onChange={() => setBrand(b)}
+                  className="h-5 w-5 accent-ink-on-sand"
+                />
+                <span className={`flex-1 font-[family-name:var(--font-barlow)] text-base ${active ? "font-semibold text-ink-on-sand" : "text-ink-on-sand/70"}`}>
+                  {b}
+                </span>
+              </label>
+            );
+          })}
         </div>
       </SidebarSection>
 
@@ -173,11 +247,11 @@ function Sidebar({
       <SidebarSection title="Condition">
         <div className="flex flex-col gap-2">
           {CONDITIONS.map((cond) => {
-            const active = selectedConditions.includes(cond);
+            const active = selectedConditions.includes(cond.value);
             return (
-              <label key={cond} className="flex cursor-pointer items-center gap-3">
+              <label key={cond.value} className="flex cursor-pointer items-center gap-3">
                 <span
-                  onClick={() => toggleCondition(cond)}
+                  onClick={() => toggleCondition(cond.value)}
                   className={`flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border transition-colors ${
                     active ? "border-ink-on-sand bg-ink-on-sand" : "border-ink-on-sand/30 bg-transparent"
                   }`}
@@ -185,10 +259,10 @@ function Sidebar({
                   {active && <CheckIcon className="h-3 w-3 text-paper" />}
                 </span>
                 <span
-                  onClick={() => toggleCondition(cond)}
+                  onClick={() => toggleCondition(cond.value)}
                   className={`flex-1 font-[family-name:var(--font-barlow)] text-base ${active ? "font-medium text-ink-on-sand" : "text-ink-on-sand/70"}`}
                 >
-                  {cond}
+                  {cond.label}
                 </span>
               </label>
             );
@@ -211,7 +285,7 @@ function Sidebar({
         <input
           type="range"
           min={0}
-          max={1000000}
+          max={MAX_PRICE_CEILING}
           step={1000}
           value={maxPrice}
           onChange={(e) => setMaxPrice(Number(e.target.value))}
@@ -244,80 +318,6 @@ function Sidebar({
   );
 }
 
-// ─── Card (Grid) ──────────────────────────────────────────────────────────────
-
-function ListingCard({ listing, scope }: { listing: BrowseListing; scope: AuctionScope }) {
-  const product = listing.product;
-  const badge = BADGE[scope];
-  const countdownTarget = scope === "live" ? listing.close_deadline : scope === "upcoming" ? listing.auction_start_at : null;
-  const countdown = useCountdown(countdownTarget);
-
-  return (
-    <Link
-      href={`/${scope}/${listing.id}`}
-      className="group flex flex-col overflow-hidden rounded-lg border border-white/10 bg-ink transition-all duration-200 hover:-translate-y-0.5 hover:border-gold/50"
-    >
-      {/* Image */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-white/5">
-        {product?.image_url ? (
-          <Image
-            src={product.image_url}
-            alt={product.name}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            sizes="(max-width: 640px) 50vw, 260px"
-            unoptimized
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <ImagePlaceholderIcon className="h-8 w-8 text-muted-on-sand/30" />
-          </div>
-        )}
-        {/* Verified badge */}
-        <span className={`absolute left-2 top-2 rounded px-2 py-0.5 font-[family-name:var(--font-barlow)] text-[9px] font-bold uppercase tracking-wider ${badge.className}`}>
-          {badge.label}
-        </span>
-        {/* Wishlist */}
-        <button
-          type="button"
-          onClick={(e) => e.preventDefault()}
-          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-ink-on-sand/60 backdrop-blur-sm transition-colors hover:text-red-urgent"
-          aria-label="Add to wishlist"
-        >
-          <HeartIcon className="h-3.5 w-3.5" />
-        </button>
-        {/* Countdown */}
-        {countdown.label && (
-          <span className={`absolute bottom-2 right-2 rounded-full px-2 py-0.5 font-[family-name:var(--font-barlow-condensed)] text-[11px] font-bold tabular-nums text-paper ${countdown.isUrgent ? "animate-pulse bg-red-urgent" : "bg-black/60"}`}>
-            {countdown.label}
-          </span>
-        )}
-      </div>
-
-      {/* Body */}
-      <div className="flex flex-1 flex-col gap-3 px-4 py-4">
-        <h3 className="line-clamp-2 font-[family-name:var(--font-barlow)] text-sm font-medium leading-snug text-paper">
-          {product?.name ?? "—"}
-        </h3>
-        <p className="font-[family-name:var(--font-barlow)] text-xs text-gray-on-dark">
-          {product?.brand ?? product?.product_type ?? "—"}
-          {listing.variant_size ? ` · ${listing.variant_size}` : ""}
-        </p>
-        <div className="mt-auto border-t border-white/10 pt-3">
-          <span className="font-[family-name:var(--font-barlow-condensed)] text-xl font-bold text-paper">
-            {listing.bid_price != null ? `₹${listing.bid_price.toLocaleString("en-IN")}` : "—"}
-          </span>
-          <p className="mt-0.5 font-[family-name:var(--font-barlow)] text-[11px] text-gray-on-dark">
-            {scope === "live" ? (listing.bid_count > 0 ? `${listing.bid_count} bid${listing.bid_count === 1 ? "" : "s"}` : "No bids yet") : null}
-            {scope === "upcoming" ? `Starts ${formatLocalDateTime(listing.auction_start_at)}` : null}
-            {scope === "sold" ? `Sold ${formatLocalDateTime(listing.auction_start_at)}` : null}
-          </p>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
 // ─── Card (List row) ──────────────────────────────────────────────────────────
 
 function ListingRow({ listing, scope }: { listing: BrowseListing; scope: AuctionScope }) {
@@ -329,15 +329,15 @@ function ListingRow({ listing, scope }: { listing: BrowseListing; scope: Auction
   return (
     <Link
       href={`/${scope}/${listing.id}`}
-      className="group flex items-center gap-4 rounded-lg border border-white/10 bg-ink px-4 py-3 transition-all duration-200 hover:border-gold/50"
+      className="group flex items-center gap-4 rounded-lg border border-ink-on-sand/10 bg-white/60 px-4 py-3 transition-all duration-200 hover:border-gold/50 hover:shadow-sm"
     >
       {/* Thumbnail */}
-      <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-white/5">
+      <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-sand">
         {product?.image_url ? (
           <Image src={product.image_url} alt={product?.name ?? ""} fill className="object-cover" sizes="80px" unoptimized />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <ImagePlaceholderIcon className="h-5 w-5 text-muted-on-sand/30" />
+            <ImagePlaceholderIcon className="h-5 w-5 text-muted-on-sand/40" />
           </div>
         )}
       </div>
@@ -349,30 +349,30 @@ function ListingRow({ listing, scope }: { listing: BrowseListing; scope: Auction
             {badge.label}
           </span>
           {listing.condition_grade && (
-            <span className="font-[family-name:var(--font-barlow)] text-[10px] text-gray-on-dark">
+            <span className="font-[family-name:var(--font-barlow)] text-[10px] text-muted-on-sand">
               {listing.condition_grade}
             </span>
           )}
         </div>
-        <h3 className="mt-0.5 truncate font-[family-name:var(--font-barlow)] text-sm font-medium text-paper">
+        <h3 className="mt-0.5 truncate font-[family-name:var(--font-barlow)] text-sm font-medium text-ink-on-sand">
           {product?.name ?? "—"}
         </h3>
-        <p className="font-[family-name:var(--font-barlow)] text-xs text-gray-on-dark">
+        <p className="font-[family-name:var(--font-barlow)] text-xs text-muted-on-sand">
           {product?.brand ?? "—"}{listing.variant_size ? ` · ${listing.variant_size}` : ""}
         </p>
       </div>
 
       {/* Price + countdown */}
       <div className="shrink-0 text-right">
-        <p className="font-[family-name:var(--font-barlow-condensed)] text-lg font-bold text-paper">
+        <p className="font-[family-name:var(--font-barlow-condensed)] text-lg font-bold text-ink-on-sand">
           {listing.bid_price != null ? `₹${listing.bid_price.toLocaleString("en-IN")}` : "—"}
         </p>
         {countdown.label && (
-          <span className={`text-[11px] font-bold tabular-nums ${countdown.isUrgent ? "text-red-urgent" : "text-gray-on-dark"}`}>
+          <span className={`text-[11px] font-bold tabular-nums ${countdown.isUrgent ? "text-red-urgent" : "text-muted-on-sand"}`}>
             {countdown.label}
           </span>
         )}
-        <p className="font-[family-name:var(--font-barlow)] text-[11px] text-gray-on-dark">
+        <p className="font-[family-name:var(--font-barlow)] text-[11px] text-muted-on-sand">
           {scope === "live" && listing.bid_count > 0 ? `${listing.bid_count} bid${listing.bid_count === 1 ? "" : "s"}` : null}
         </p>
       </div>
@@ -395,9 +395,15 @@ export function AuctionBrowseView({
     useBrowseListings(scope);
   const [sort, setSort] = useState<SortOption>("newest");
   const [view, setView] = useState<ViewMode>("grid");
+  const [brand, setBrand] = useState<string | undefined>(undefined);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>(["All"]);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>(["All"]);
+  const [maxPrice, setMaxPrice] = useState(MAX_PRICE_CEILING);
 
-  // Client-side sort (server already paginates; this sorts the current page)
-  const sorted = [...items].sort((a, b) => {
+  // Client-side filter + sort (server already paginates category/scope; this
+  // narrows and sorts the current page for brand/size/condition/price).
+  const filtered = items.filter((listing) => matchesFilters(listing, { brand, sizes: selectedSizes, conditions: selectedConditions, maxPrice }));
+  const sorted = [...filtered].sort((a, b) => {
     if (sort === "price_asc") return (a.bid_price ?? 0) - (b.bid_price ?? 0);
     if (sort === "price_desc") return (b.bid_price ?? 0) - (a.bid_price ?? 0);
     if (sort === "most_watched") return (b.bid_count ?? 0) - (a.bid_count ?? 0);
@@ -408,6 +414,13 @@ export function AuctionBrowseView({
     <div className="bg-sand">
 
       <div className="px-6 py-8 md:px-10">
+        <div className="mb-6">
+          <h1 className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-extrabold uppercase tracking-tight text-ink-on-sand">
+            {title}
+          </h1>
+          <p className="mt-1 font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">{subtitle}</p>
+        </div>
+
         {/* Top bar */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -451,7 +464,20 @@ export function AuctionBrowseView({
         <div className="flex gap-6">
           {/* Sidebar */}
           <div className="hidden lg:block">
-            <Sidebar category={category} setCategory={setCategory} sort={sort} setSort={setSort} />
+            <Sidebar
+              category={category}
+              setCategory={setCategory}
+              sort={sort}
+              setSort={setSort}
+              brand={brand}
+              setBrand={setBrand}
+              selectedSizes={selectedSizes}
+              setSelectedSizes={setSelectedSizes}
+              selectedConditions={selectedConditions}
+              setSelectedConditions={setSelectedConditions}
+              maxPrice={maxPrice}
+              setMaxPrice={setMaxPrice}
+            />
           </div>
 
           {/* Content */}
@@ -459,17 +485,19 @@ export function AuctionBrowseView({
             {error ? (
               <p className="mt-8 font-[family-name:var(--font-barlow)] text-sm text-red-urgent">{error}</p>
             ) : isLoading ? (
-              <div className={view === "grid" ? "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6" : "flex flex-col gap-3"}>
+              <div className={view === "grid" ? "grid grid-cols-2 gap-5 sm:grid-cols-3" : "flex flex-col gap-3"}>
                 {Array.from({ length: 8 }).map((_, i) => (
                   <AuctionListingCardSkeleton key={i} />
                 ))}
               </div>
+            ) : sorted.length === 0 && items.length > 0 ? (
+              <EmptyAuctionState title="No matches" body="No listings match these filters — try widening your brand, size, condition, or price range." />
             ) : sorted.length === 0 ? (
               <EmptyAuctionState title={EMPTY_COPY[scope].title} body={EMPTY_COPY[scope].body} />
             ) : view === "grid" ? (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
                 {sorted.map((listing) => (
-                  <ListingCard key={listing.id} listing={listing} scope={scope} />
+                  <AuctionListingCard key={listing.id} listing={listing} scope={scope} />
                 ))}
               </div>
             ) : (
@@ -513,14 +541,6 @@ function ListIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
       <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function HeartIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path d="M12 21C12 21 3 14.5 3 8.5C3 5.46 5.46 3 8.5 3C10.24 3 11.91 3.81 13 5.08C14.09 3.81 15.76 3 17.5 3C20.54 3 23 5.46 23 8.5C23 14.5 12 21 12 21Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

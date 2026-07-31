@@ -19,7 +19,7 @@ const STATUS_COPY: Record<string, { label: string; className: string }> = {
   scheduled: { label: "Scheduled", className: "bg-gold text-ink-on-sand" },
   live: { label: "● Live", className: "bg-red-urgent text-paper" },
   sold: { label: "Sold", className: "bg-emerald-600 text-paper" },
-  unsold: { label: "Unsold", className: "bg-white/20 text-paper" },
+  unsold: { label: "Unsold", className: "bg-ink-on-sand/80 text-paper" },
 };
 
 export function AuctionDetailView({ id, backHref, scope }: { id: string; backHref: string; scope: AuctionScope }) {
@@ -39,13 +39,13 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
     <>
       <Link
         href={backHref}
-        className="font-[family-name:var(--font-barlow)] text-sm font-medium text-gray-on-dark hover:text-paper"
+        className="font-[family-name:var(--font-barlow)] text-sm font-medium text-muted-on-sand hover:text-ink-on-sand"
       >
         ‹ Back to auctions
       </Link>
 
       {isLoading ? (
-        <p className="mt-8 font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">Loading...</p>
+        <p className="mt-8 font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">Loading...</p>
       ) : error || !detail ? (
         <p className="mt-8 font-[family-name:var(--font-barlow)] text-sm text-red-urgent">
           {error ?? "Auction not found."}
@@ -56,7 +56,7 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
             <StaleLinkBanner id={detail.id} routeScope={scope} auctionStatus={detail.auction_status} />
           )}
           <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-2">
-            <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-white/5">
+            <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-sand">
               {(() => {
                 const imageUrl = detail.photos[0]?.url ?? detail.product?.image_url;
                 return imageUrl ? (
@@ -74,7 +74,7 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
 
             <div>
               <div className="flex items-start justify-between gap-3">
-                <h1 className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-extrabold uppercase tracking-tight text-paper">
+                <h1 className="font-[family-name:var(--font-barlow-condensed)] text-3xl font-extrabold uppercase tracking-tight text-ink-on-sand">
                   {detail.product?.name ?? "Listing"}
                 </h1>
                 {!detail.is_own_listing && (
@@ -86,7 +86,7 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
                   />
                 )}
               </div>
-              <p className="mt-1 font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
+              <p className="mt-1 font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">
                 {detail.product?.brand ?? detail.product?.product_type ?? "—"}
                 {detail.variant_size ? ` · Size ${detail.variant_size}` : ""}
                 {detail.condition_grade ? ` · ${detail.condition_grade}` : ""}
@@ -94,7 +94,7 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
               </p>
 
               {detail.condition_notes && (
-                <p className="mt-3 font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
+                <p className="mt-3 font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">
                   {detail.condition_notes}
                 </p>
               )}
@@ -103,18 +103,18 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
                 <AuctionCountdownPanel detail={detail} countdown={countdown} currentUserId={currentUserId} />
               </div>
 
-              <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-5">
-                <p className="font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase tracking-widest text-gray-on-dark">
+              <div className="mt-4 rounded-lg border border-ink-on-sand/10 bg-white/60 p-5">
+                <p className="font-[family-name:var(--font-barlow)] text-xs font-semibold uppercase tracking-widest text-muted-on-sand">
                   {detail.auction_status === "sold" ? "Sold for" : "Current price"}
                 </p>
-                <p className="mt-1 font-[family-name:var(--font-barlow-condensed)] text-4xl font-extrabold text-paper">
+                <p className="mt-1 font-[family-name:var(--font-barlow-condensed)] text-4xl font-extrabold text-ink-on-sand">
                   ₹
                   {(detail.auction_status === "sold"
                     ? (detail.final_price ?? detail.current_price)
                     : detail.current_price
                   ).toLocaleString("en-IN")}
                 </p>
-                <p className="mt-1 font-[family-name:var(--font-barlow)] text-xs text-gray-on-dark">
+                <p className="mt-1 font-[family-name:var(--font-barlow)] text-xs text-muted-on-sand">
                   {detail.bid_count} bid{detail.bid_count === 1 ? "" : "s"}
                   {detail.auction_status === "live" && detail.min_next_bid != null
                     ? ` · Minimum next bid ₹${detail.min_next_bid.toLocaleString("en-IN")}`
@@ -127,19 +127,19 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
 
                 <div className="mt-4">
                   {detail.is_own_listing ? (
-                    <p className="font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
+                    <p className="font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">
                       This is your own listing — you can&apos;t bid on it.
                     </p>
                   ) : detail.auction_status === "live" ? (
                     <BidForm listingId={detail.id} currentPrice={detail.current_price} onPlaced={refresh} />
                   ) : detail.auction_status === "scheduled" ? (
-                    <p className="font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
+                    <p className="font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">
                       Bidding opens once the auction starts.
                     </p>
                   ) : detail.auction_status === "sold" ? (
                     detail.winner_id === user?.id ? (
                       <div className="flex flex-col gap-2">
-                        <p className="font-[family-name:var(--font-barlow)] text-sm text-emerald-400">
+                        <p className="font-[family-name:var(--font-barlow)] text-sm text-emerald-600">
                           You won this auction! Pay within 2 hours or it goes to the next bidder.
                         </p>
                         <Link
@@ -150,12 +150,12 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
                         </Link>
                       </div>
                     ) : (
-                      <p className="font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
+                      <p className="font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">
                         This auction has ended.
                       </p>
                     )
                   ) : (
-                    <p className="font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">
+                    <p className="font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">
                       This auction ended with no bids.
                     </p>
                   )}
@@ -169,7 +169,7 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
               )}
 
               <div className="mt-6">
-                <p className="mb-2 font-[family-name:var(--font-barlow)] text-sm font-semibold uppercase tracking-wide text-paper">
+                <p className="mb-2 font-[family-name:var(--font-barlow)] text-sm font-semibold uppercase tracking-wide text-ink-on-sand">
                   Bid History
                 </p>
                 <BidHistoryList bids={detail.bids} currentUserId={user?.id} />

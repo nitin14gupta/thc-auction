@@ -30,10 +30,10 @@ export function RelatedListingsSection({ listingId }: { listingId: string }) {
 
   return (
     <div className="mt-14">
-      <h2 className="mb-4 font-[family-name:var(--font-barlow-condensed)] text-2xl font-bold uppercase tracking-tight text-paper">
+      <h2 className="mb-4 font-[family-name:var(--font-barlow-condensed)] text-2xl font-bold uppercase tracking-tight text-ink-on-sand">
         You May Also Like
       </h2>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
         {items.map((item) => {
           const scope = toScope(item.auction_status);
           if (!scope) return null;

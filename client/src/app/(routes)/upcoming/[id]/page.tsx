@@ -12,7 +12,7 @@ export default function UpcomingAuctionDetailPage() {
 
   return (
     <RequireAuth>
-      <div className="flex min-h-screen flex-col bg-ink">
+      <div className="flex min-h-screen flex-col bg-sand">
         <Navbar />
         <div className="flex-1 py-10">
           <Container>

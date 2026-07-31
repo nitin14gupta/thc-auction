@@ -55,7 +55,7 @@ export function BidForm({
             type="button"
             onClick={() => submitBid(currentPrice + inc)}
             disabled={isSubmitting}
-            className="rounded-md border border-white/15 bg-white/5 px-3 py-1.5 font-[family-name:var(--font-barlow)] text-xs font-semibold text-paper transition-colors hover:border-tan disabled:opacity-50"
+            className="rounded-md border border-ink-on-sand/15 bg-white/60 px-3 py-1.5 font-[family-name:var(--font-barlow)] text-xs font-semibold text-ink-on-sand transition-colors hover:border-tan disabled:opacity-50"
           >
             +₹{inc.toLocaleString("en-IN")}
           </button>
@@ -63,14 +63,14 @@ export function BidForm({
       </div>
 
       <form onSubmit={handleSubmit} className="flex items-center gap-3">
-        <div className="flex h-12 flex-1 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-4">
-          <span className="font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">₹</span>
+        <div className="flex h-12 flex-1 items-center gap-1 rounded-md border border-ink-on-sand/15 bg-white/60 px-4">
+          <span className="font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">₹</span>
           <input
             type="number"
             min={currentPrice + 1}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-full bg-transparent font-[family-name:var(--font-barlow-condensed)] text-lg font-bold text-paper focus:outline-none"
+            className="w-full bg-transparent font-[family-name:var(--font-barlow-condensed)] text-lg font-bold text-ink-on-sand focus:outline-none"
           />
         </div>
         <button

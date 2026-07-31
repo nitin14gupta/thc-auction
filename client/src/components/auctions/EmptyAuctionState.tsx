@@ -1,13 +1,13 @@
 export function EmptyAuctionState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="mt-10 flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-white/15 py-20 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5">
-        <HammerIcon className="h-6 w-6 text-gray-on-dark" />
+    <div className="mt-10 flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-ink-on-sand/15 py-20 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ink-on-sand/5">
+        <HammerIcon className="h-6 w-6 text-muted-on-sand" />
       </div>
-      <p className="font-[family-name:var(--font-barlow-condensed)] text-xl font-bold uppercase text-paper">
+      <p className="font-[family-name:var(--font-barlow-condensed)] text-xl font-bold uppercase text-ink-on-sand">
         {title}
       </p>
-      <p className="max-w-xs font-[family-name:var(--font-barlow)] text-sm text-gray-on-dark">{body}</p>
+      <p className="max-w-xs font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">{body}</p>
     </div>
   );
 }
