@@ -1,0 +1,15 @@
+[Unit]
+Description=HYPE Auction Web (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/var/www/thc-auction/client
+Environment=NODE_ENV=production
+ExecStart=/var/www/thc-auction/client/node_modules/.bin/next start -p 3000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
