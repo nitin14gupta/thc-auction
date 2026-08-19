@@ -9,5 +9,6 @@ export async function GET() {
     .filter((f) => /^hero-/.test(f))
     .sort()
     .map((f) => `/images/${f}`);
-  return NextResponse.json(heroImages);
+
+  return NextResponse.json(heroImages, { headers: { "Cache-Control": "no-store" } });
 }

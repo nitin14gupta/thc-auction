@@ -17,9 +17,15 @@ export function Footer() {
           </p>
 
           <div className="mt-6 flex items-center gap-4">
-            <InstagramIcon className="h-5 w-5 text-paper" />
-            <XIcon className="h-4 w-4 text-paper" />
-            <YoutubeIcon className="h-5 w-5 text-paper" />
+            <a href="#" aria-label="Instagram" className="cursor-pointer text-paper transition-colors hover:text-tan">
+              <InstagramIcon className="h-5 w-5" />
+            </a>
+            <a href="#" aria-label="X (Twitter)" className="cursor-pointer text-paper transition-colors hover:text-tan">
+              <XIcon className="h-4 w-4" />
+            </a>
+            <a href="#" aria-label="YouTube" className="cursor-pointer text-paper transition-colors hover:text-tan">
+              <YoutubeIcon className="h-5 w-5" />
+            </a>
           </div>
         </div>
 
@@ -34,7 +40,7 @@ export function Footer() {
                   <li key={link}>
                     <Link
                       href="#"
-                      className="font-[family-name:var(--font-barlow)] text-sm text-paper/90 transition-colors hover:text-tan"
+                      className="cursor-pointer font-[family-name:var(--font-barlow)] text-sm text-paper/90 transition-colors hover:text-tan"
                     >
                       {link}
                     </Link>
@@ -52,14 +58,20 @@ export function Footer() {
           <p className="mt-3 font-[family-name:var(--font-barlow)] text-sm text-paper/90">Coming Soon</p>
 
           <div className="mt-4 flex flex-col gap-2">
-            <div className="flex h-10 w-36 items-center gap-2 rounded-md border border-white/20 px-3">
+            <a
+              href="#"
+              className="flex h-10 w-36 cursor-pointer items-center gap-2 rounded-md border border-white/20 px-3 transition-colors hover:border-white/40"
+            >
               <AppleIcon className="h-4 w-4 text-paper" />
               <span className="font-[family-name:var(--font-barlow)] text-xs text-paper/90">App Store</span>
-            </div>
-            <div className="flex h-10 w-36 items-center gap-2 rounded-md border border-white/20 px-3">
+            </a>
+            <a
+              href="#"
+              className="flex h-10 w-36 cursor-pointer items-center gap-2 rounded-md border border-white/20 px-3 transition-colors hover:border-white/40"
+            >
               <PlayIcon className="h-4 w-4 text-paper" />
               <span className="font-[family-name:var(--font-barlow)] text-xs text-paper/90">Google Play</span>
-            </div>
+            </a>
           </div>
         </div>
       </div>

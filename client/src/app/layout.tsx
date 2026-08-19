@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { fontVariables } from "@/constants/fonts";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { SmoothScroll } from "@/components/providers/SmoothScroll";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,9 +18,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${fontVariables} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-ink text-paper">
-        <AuthProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </AuthProvider>
+        <SmoothScroll>
+          <AuthProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </AuthProvider>
+        </SmoothScroll>
       </body>
     </html>
   );
