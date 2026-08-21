@@ -59,6 +59,17 @@ def get_current_user(
     return auth_service.get_current_user(credentials.credentials)
 
 
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict | None:
+    if not credentials:
+        return None
+    try:
+        return auth_service.get_current_user(credentials.credentials)
+    except HTTPException:
+        return None
+
+
 def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if not current_user.get("is_admin"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required.")

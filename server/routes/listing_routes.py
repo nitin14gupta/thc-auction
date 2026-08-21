@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
-from routes.auth_routes import get_current_user, require_admin
+from routes.auth_routes import get_current_user, get_optional_user, require_admin
 from schemas.analytics import WatchToggleOut
 from schemas.listing import (
     AuctionDetailOut,
@@ -43,9 +43,11 @@ def browse_listings(
     q: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=50),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict | None = Depends(get_optional_user),
 ):
-    return listing_service.browse_listings(current_user["id"], scope, category, q, page, page_size)
+    return listing_service.browse_listings(
+        current_user["id"] if current_user else None, scope, category, q, page, page_size
+    )
 
 
 @router.get("/{listing_id}/auction", response_model=AuctionDetailOut)

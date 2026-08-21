@@ -164,7 +164,7 @@ def list_my_listings(user_id: str, status_filter: str | None = None, page: int =
 
 
 def browse_listings(
-    exclude_user_id: str,
+    exclude_user_id: str | None,
     scope: str,
     category: str | None = None,
     q: str | None = None,
@@ -185,10 +185,10 @@ def browse_listings(
         .eq("status", "accepted")
         .not_.is_("auction_start_at", "null")
     )
-    if scope != "sold":
+    if scope != "sold" and exclude_user_id:
         # Sold listings are a public record — no reason to hide a seller's own
         # sales from them, unlike live/upcoming where bidding on your own item
-        # makes no sense.
+        # makes no sense. Anonymous visitors have nothing to exclude.
         query = query.neq("seller_id", exclude_user_id)
 
     res = query.execute()
