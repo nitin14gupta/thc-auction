@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the HYPE Auction activity simulator every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Unit=thc-auction-simulate.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

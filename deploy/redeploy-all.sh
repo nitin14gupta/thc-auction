@@ -16,6 +16,11 @@ pip install -r requirements.txt
 deactivate
 systemctl restart thc-auction-api
 
+echo "== activity simulator: refresh unit files + timer =="
+cp deploy/thc-auction-simulate.service deploy/thc-auction-simulate.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now thc-auction-simulate.timer
+
 echo "== frontend: install deps + build + restart =="
 cd "$REPO/client"
 npm install

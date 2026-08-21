@@ -45,6 +45,39 @@ Important: when the frontend is deployed, update `FRONTEND_URL` and `ALLOWED_ORI
 in this file to the real frontend domain (currently set to localhost placeholders),
 otherwise the browser will get CORS errors.
 
+## Activity simulator (fake users/listings/bids)
+
+`scripts/simulate_activity.py` grows a pool of bot users, tops up the live/upcoming
+listing pool, and places real bids through the HTTP API so the site looks active.
+It runs on a schedule via a systemd timer, `thc-auction-simulate.timer`, which fires
+every 15 minutes and is refreshed automatically by `redeploy.sh` / `redeploy-all.sh`.
+
+First-time setup on the VPS (subsequent deploys refresh this automatically):
+```bash
+cp /var/www/thc-auction/server/deploy/thc-auction-simulate.service /etc/systemd/system/
+cp /var/www/thc-auction/server/deploy/thc-auction-simulate.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now thc-auction-simulate.timer
+```
+
+Check it's scheduled and see recent runs:
+```bash
+systemctl list-timers thc-auction-simulate.timer
+journalctl -u thc-auction-simulate.service -n 50
+```
+
+Run it manually (e.g. to sanity-check before waiting for the next tick):
+```bash
+cd /var/www/thc-auction/server
+source venv/bin/activate
+python scripts/simulate_activity.py --dry-run   # logs intended actions, writes nothing
+python scripts/simulate_activity.py             # actually runs it
+```
+
+Tunable via env vars in `server/.env` (all optional — see the script's docstring for
+the full list): `SIMULATE_MAX_BOT_USERS`, `SIMULATE_TARGET_LIVE_MIN/MAX`,
+`SIMULATE_MAX_NEW_LISTINGS`, `SIMULATE_MAX_BID_LISTINGS`.
+
 ## Useful commands
 
 Check the API is up:
