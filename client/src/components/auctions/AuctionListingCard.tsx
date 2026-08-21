@@ -24,56 +24,56 @@ export function AuctionListingCard({ listing, scope }: { listing: BrowseListing;
       className="group flex flex-col overflow-hidden rounded-lg border border-ink-on-sand/10 bg-white/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-gold/50 hover:shadow-sm"
     >
       {/* Image */}
-      <div className="relative aspect-square w-full overflow-hidden bg-sand">
+      <div className="relative aspect-square w-full shrink-0 overflow-hidden bg-sand">
         {product?.image_url ? (
           <Image
             src={product.image_url}
             alt={product.name}
             fill
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            sizes="(max-width: 640px) 50vw, 33vw"
+            className="object-contain p-3 transition-transform duration-300 group-hover:scale-[1.02]"
+            sizes="(max-width: 640px) 33vw, (max-width: 1024px) 22vw, 16vw"
             unoptimized
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <ImagePlaceholderIcon className="h-8 w-8 text-muted-on-sand/40" />
+            <ImagePlaceholderIcon className="h-6 w-6 text-muted-on-sand/40" />
           </div>
         )}
         {/* Verified badge */}
-        <span className={`absolute left-2 top-2 rounded px-2 py-0.5 font-[family-name:var(--font-barlow)] text-[9px] font-bold uppercase tracking-wider ${badge.className}`}>
+        <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 font-[family-name:var(--font-barlow)] text-[8px] font-bold uppercase tracking-wider ${badge.className}`}>
           {badge.label}
         </span>
         {/* Wishlist */}
         <button
           type="button"
           onClick={(e) => e.preventDefault()}
-          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-ink-on-sand/60 backdrop-blur-sm transition-colors hover:text-red-urgent"
+          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-ink-on-sand/60 backdrop-blur-sm transition-colors hover:text-red-urgent"
           aria-label="Add to wishlist"
         >
-          <HeartIcon className="h-3.5 w-3.5" />
+          <HeartIcon className="h-3 w-3" />
         </button>
         {/* Countdown */}
         {countdown.label && (
-          <span className={`absolute bottom-2 right-2 rounded-full px-2 py-0.5 font-[family-name:var(--font-barlow-condensed)] text-[11px] font-bold tabular-nums text-paper ${countdown.isUrgent ? "animate-pulse bg-red-urgent" : "bg-black/65"}`}>
+          <span className={`absolute bottom-1.5 right-1.5 rounded-full px-1.5 py-0.5 font-[family-name:var(--font-barlow-condensed)] text-[10px] font-bold tabular-nums text-paper ${countdown.isUrgent ? "animate-pulse bg-red-urgent" : "bg-black/65"}`}>
             {countdown.label}
           </span>
         )}
       </div>
 
       {/* Body */}
-      <div className="flex flex-1 flex-col gap-3 px-4 py-4">
-        <h3 className="line-clamp-2 font-[family-name:var(--font-barlow)] text-sm font-medium leading-snug text-ink-on-sand">
+      <div className="flex flex-1 flex-col gap-1.5 px-2.5 py-2.5">
+        <h3 className="line-clamp-2 font-[family-name:var(--font-barlow)] text-xs font-medium leading-snug text-ink-on-sand">
           {product?.name ?? "—"}
         </h3>
-        <p className="font-[family-name:var(--font-barlow)] text-xs text-muted-on-sand">
+        <p className="truncate font-[family-name:var(--font-barlow)] text-[11px] text-muted-on-sand">
           {product?.brand ?? product?.product_type ?? "—"}
           {listing.variant_size ? ` · ${listing.variant_size}` : ""}
         </p>
-        <div className="mt-auto border-t border-ink-on-sand/10 pt-3">
-          <span className="font-[family-name:var(--font-barlow-condensed)] text-xl font-bold text-ink-on-sand">
+        <div className="mt-auto border-t border-ink-on-sand/10 pt-2">
+          <span className="font-[family-name:var(--font-barlow-condensed)] text-base font-bold text-ink-on-sand">
             {listing.bid_price != null ? `₹${listing.bid_price.toLocaleString("en-IN")}` : "—"}
           </span>
-          <p className="mt-0.5 font-[family-name:var(--font-barlow)] text-[11px] text-muted-on-sand">
+          <p className="mt-0.5 truncate font-[family-name:var(--font-barlow)] text-[10px] text-muted-on-sand">
             {scope === "live" ? (listing.bid_count > 0 ? `${listing.bid_count} bid${listing.bid_count === 1 ? "" : "s"}` : "No bids yet") : null}
             {scope === "upcoming" ? `Starts ${formatLocalDateTime(listing.auction_start_at)}` : null}
             {scope === "sold" ? `Sold ${formatLocalDateTime(listing.auction_start_at)}` : null}
