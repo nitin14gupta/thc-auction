@@ -4,6 +4,7 @@ export type User = {
   email: string;
   avatar_url: string | null;
   is_admin: boolean;
+  is_verified: boolean;
 };
 
 export type AccessTokenResponse = {

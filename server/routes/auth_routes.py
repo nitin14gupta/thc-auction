@@ -46,6 +46,7 @@ def _access_token_response(access_token: str, user: dict) -> AccessTokenResponse
             email=user["email"],
             avatar_url=user.get("avatar_url"),
             is_admin=bool(user.get("is_admin")),
+            is_verified=auth_service.is_seller_verified(user["id"]),
         ),
     )
 
@@ -108,6 +109,7 @@ def me(current_user: dict = Depends(get_current_user)):
         email=current_user["email"],
         avatar_url=current_user.get("avatar_url"),
         is_admin=bool(current_user.get("is_admin")),
+        is_verified=auth_service.is_seller_verified(current_user["id"]),
     )
 
 
@@ -124,6 +126,7 @@ async def update_avatar(file: UploadFile = File(...), current_user: dict = Depen
         email=user["email"],
         avatar_url=user.get("avatar_url"),
         is_admin=bool(user.get("is_admin")),
+        is_verified=auth_service.is_seller_verified(user["id"]),
     )
 
 

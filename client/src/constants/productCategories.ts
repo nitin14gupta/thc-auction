@@ -16,5 +16,4 @@ export const productCategories: string[] = [
   "Perfumes",
   "Collectibles",
   "Gift Set",
-  "Mystery Box",
 ];

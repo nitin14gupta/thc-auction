@@ -32,6 +32,7 @@ class UserOut(BaseModel):
     email: EmailStr
     avatar_url: str | None = None
     is_admin: bool = False
+    is_verified: bool = False
 
 
 class AccessTokenResponse(BaseModel):

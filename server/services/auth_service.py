@@ -39,6 +39,12 @@ def get_user_by_id(user_id: str) -> dict | None:
     return res.data[0] if res.data else None
 
 
+def is_seller_verified(user_id: str) -> bool:
+    db = get_supabase_client()
+    res = db.table("listings").select("id").eq("seller_id", user_id).eq("status", "accepted").limit(1).execute()
+    return bool(res.data)
+
+
 def register_user(name: str, email: str, password: str) -> dict:
     if get_user_by_email(email):
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists.")
