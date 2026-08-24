@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AuctionCountdownPanel } from "@/components/auctions/AuctionCountdownPanel";
+import { AuctionDetailSkeleton } from "@/components/auctions/AuctionDetailSkeleton";
 import { BidForm } from "@/components/auctions/BidForm";
 import { BidHistoryList } from "@/components/auctions/BidHistoryList";
 import { SellerCard } from "@/components/auctions/SellerCard";
@@ -45,7 +46,7 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
       </Link>
 
       {isLoading ? (
-        <p className="mt-8 font-[family-name:var(--font-barlow)] text-sm text-muted-on-sand">Loading...</p>
+        <AuctionDetailSkeleton />
       ) : error || !detail ? (
         <p className="mt-8 font-[family-name:var(--font-barlow)] text-sm text-red-urgent">
           {error ?? "Auction not found."}

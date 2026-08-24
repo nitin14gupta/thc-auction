@@ -56,22 +56,32 @@ def _fetch_bids(db, listing_id: str) -> list[dict]:
     return res.data or []
 
 
+BATCH_FETCH_CHUNK_SIZE = 100
+
+
 def batch_fetch_bids(db, listing_ids: list[str]) -> dict[str, list[dict]]:
-    """One query for every listing's bids instead of one query per listing —
+    """One query per chunk of listings' bids instead of one query per listing —
     use this before calling sync_auction_status in a loop over a page of
-    listings (list_my_listings, browse_listings, get_related_listings)."""
+    listings (list_my_listings, browse_listings, get_related_listings).
+
+    Chunked because a single IN(...) with hundreds of listing ids can exceed
+    the request-size limit the DB provider enforces on GET query strings."""
     by_listing: dict[str, list[dict]] = {lid: [] for lid in listing_ids}
     if not listing_ids:
         return by_listing
-    res = (
-        db.table("bids")
-        .select("id, bidder_id, amount, created_at, listing_id")
-        .in_("listing_id", listing_ids)
-        .order("created_at")
-        .execute()
-    )
-    for bid in res.data or []:
-        by_listing.setdefault(bid["listing_id"], []).append(bid)
+
+    for i in range(0, len(listing_ids), BATCH_FETCH_CHUNK_SIZE):
+        chunk = listing_ids[i : i + BATCH_FETCH_CHUNK_SIZE]
+        res = (
+            db.table("bids")
+            .select("id, bidder_id, amount, created_at, listing_id")
+            .in_("listing_id", chunk)
+            .order("created_at")
+            .execute()
+        )
+        for bid in res.data or []:
+            by_listing.setdefault(bid["listing_id"], []).append(bid)
+
     return by_listing
 
 

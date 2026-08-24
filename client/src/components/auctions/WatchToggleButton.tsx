@@ -24,6 +24,7 @@ export function WatchToggleButton({
     setIsSaving(true);
     try {
       await toggleWatch(authFetch, listingId);
+      toast(isWatching ? "Removed from watchlist." : "Added to watchlist.", "success");
       onToggled();
     } catch {
       toast("Couldn't update your watchlist. Try again.", "error");

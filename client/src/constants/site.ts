@@ -48,6 +48,7 @@ export const footerColumns = [
       { label: "Live Auctions", href: "/live" },
       { label: "Upcoming", href: "/upcoming" },
       { label: "Sold", href: "/sold" },
+      { label: "Saved", href: "/saved" },
     ],
   },
   {
@@ -78,5 +79,5 @@ export const footerColumns = [
 export const footerBrand = {
   name: "HYPE.",
   tagline: "The market decides.",
-  copyright: "© 2024 HYPE. All rights reserved.",
+  copyright: "© 2026 HYPE. All rights reserved.",
 } as const;

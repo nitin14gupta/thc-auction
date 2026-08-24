@@ -50,6 +50,15 @@ def browse_listings(
     )
 
 
+@router.get("/watchlist", response_model=BrowseListingsPage)
+def get_watchlist(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=12, ge=1, le=50),
+    current_user: dict = Depends(get_current_user),
+):
+    return listing_service.get_watchlist(current_user["id"], page, page_size)
+
+
 @router.get("/{listing_id}/auction", response_model=AuctionDetailOut)
 def get_auction_detail(listing_id: str, current_user: dict = Depends(get_current_user)):
     return listing_service.get_auction_detail(current_user["id"], listing_id)

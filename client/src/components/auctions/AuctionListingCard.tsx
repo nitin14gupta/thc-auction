@@ -1,8 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { toggleWatch } from "@/api/listingApi";
+import { useAuth } from "@/hooks/useAuth";
 import { useCountdown } from "@/hooks/useCountdown";
+import { useToast } from "@/hooks/useToast";
 import { formatLocalDateTime } from "@/utils/dateUtils";
 import type { AuctionScope, BrowseListing } from "@/types/listing";
 
@@ -17,6 +22,32 @@ export function AuctionListingCard({ listing, scope }: { listing: BrowseListing;
   const badge = BADGE[scope];
   const countdownTarget = scope === "live" ? listing.close_deadline : scope === "upcoming" ? listing.auction_start_at : null;
   const countdown = useCountdown(countdownTarget);
+
+  const router = useRouter();
+  const { isAuthenticated, authFetch } = useAuth();
+  const { toast } = useToast();
+  const [isWatching, setIsWatching] = useState(listing.is_watching);
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function handleSaveClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAuthenticated) {
+      router.push("/login");
+      return;
+    }
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const result = await toggleWatch(authFetch, listing.id);
+      setIsWatching(result.is_watching);
+      toast(result.is_watching ? "Saved." : "Removed from saved.", "success");
+    } catch {
+      toast("Couldn't update saved items. Try again.", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   return (
     <Link
@@ -43,14 +74,18 @@ export function AuctionListingCard({ listing, scope }: { listing: BrowseListing;
         <span className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 font-[family-name:var(--font-barlow)] text-[8px] font-bold uppercase tracking-wider ${badge.className}`}>
           {badge.label}
         </span>
-        {/* Wishlist */}
+        {/* Save */}
         <button
           type="button"
-          onClick={(e) => e.preventDefault()}
-          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-ink-on-sand/60 backdrop-blur-sm transition-colors hover:text-red-urgent"
-          aria-label="Add to wishlist"
+          onClick={handleSaveClick}
+          disabled={isSaving}
+          className={`absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 backdrop-blur-sm transition-colors disabled:opacity-60 ${
+            isWatching ? "text-gold" : "text-ink-on-sand/60 hover:text-gold"
+          }`}
+          aria-label={isWatching ? "Remove from saved" : "Save"}
+          aria-pressed={isWatching}
         >
-          <HeartIcon className="h-3 w-3" />
+          <SaveIcon className="h-3 w-3" filled={isWatching} />
         </button>
         {/* Countdown */}
         {countdown.label && (
@@ -94,10 +129,10 @@ function ImagePlaceholderIcon({ className }: { className?: string }) {
   );
 }
 
-function HeartIcon({ className }: { className?: string }) {
+function SaveIcon({ className, filled }: { className?: string; filled?: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path d="M12 21C12 21 3 14.5 3 8.5C3 5.46 5.46 3 8.5 3C10.24 3 11.91 3.81 13 5.08C14.09 3.81 15.76 3 17.5 3C20.54 3 23 5.46 23 8.5C23 14.5 12 21 12 21Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} className={className} aria-hidden="true">
+      <path d="M6 4h12v16l-6-4-6 4V4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
     </svg>
   );
 }

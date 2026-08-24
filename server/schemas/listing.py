@@ -96,6 +96,7 @@ class BrowseListingOut(BaseModel):
     auction_status: str | None = None
     close_deadline: str | None = None
     bid_count: int = 0
+    is_watching: bool = False
     product: BrowseProductSummary | None = None
 
 

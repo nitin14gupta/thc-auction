@@ -108,7 +108,7 @@ Fluid `clamp()` sizing is used for the hero H1, section headings, and stat numbe
 - Market Moves ticker: `MARKET MOVES ⚡ Nike Dunk Low sold for ₹19,200 • Yeezy 350 Beluga highest bid ₹25,500 • Supreme Tee sold for ₹8,500 • Off-White Air Jordan 1 new bid ₹83,200` — `View Market →`
 - Newsletter: `Stay Ahead of the Drop.` / `Get updates on exclusive drops and live auctions.` / input placeholder `Enter your email` / arrow submit button
 - Footer:
-  - Brand: `HYPE.` — `The market decides.` — `© 2024 HYPE. All rights reserved.` — Instagram / X / YouTube icons
+  - Brand: `HYPE.` — `The market decides.` — `© 2026 HYPE. All rights reserved.` — Instagram / X / YouTube icons
   - `Market`: Auctions, Live, Upcoming, Sold, Categories
   - `Sell`: Sell With Us, How It Works, Seller Guide, Payouts
   - `Company`: About Us, Careers, Blog, Press

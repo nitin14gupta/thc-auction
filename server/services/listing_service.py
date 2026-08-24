@@ -180,10 +180,12 @@ def browse_listings(
         db.table("listings")
         .select(
             "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
-            "final_price, status, seller_id, products(id, name, brand, images, price, product_type)"
+            "final_price, status, seller_id, products(id, name, brand, images, price, product_type), "
+            "bids(id, bidder_id, amount, created_at)"
         )
         .eq("status", "accepted")
         .not_.is_("auction_start_at", "null")
+        .order("created_at", foreign_table="bids")
     )
     if scope != "sold" and exclude_user_id:
         # Sold listings are a public record — no reason to hide a seller's own
@@ -194,9 +196,8 @@ def browse_listings(
     res = query.execute()
     rows = res.data or []
 
-    bids_by_listing = auction_service.batch_fetch_bids(db, [r["id"] for r in rows])
     for r in rows:
-        auction_service.sync_auction_status(db, r, bids=bids_by_listing.get(r["id"], []))
+        auction_service.sync_auction_status(db, r, bids=r.get("bids") or [])
     rows = [r for r in rows if r.get("auction_status") == target_status]
 
     if category:
@@ -214,6 +215,17 @@ def browse_listings(
     total = len(rows)
     start = (page - 1) * page_size
     page_rows = rows[start : start + page_size]
+
+    watched_ids: set[str] = set()
+    if exclude_user_id and page_rows:
+        watch_res = (
+            db.table("listing_watchlist")
+            .select("listing_id")
+            .eq("user_id", exclude_user_id)
+            .in_("listing_id", [r["id"] for r in page_rows])
+            .execute()
+        )
+        watched_ids = {w["listing_id"] for w in (watch_res.data or [])}
 
     items = []
     for r in page_rows:
@@ -238,6 +250,79 @@ def browse_listings(
                 "auction_status": r.get("auction_status"),
                 "close_deadline": auction_service.next_close_deadline(r),
                 "bid_count": len(r.get("_bids") or []),
+                "is_watching": r["id"] in watched_ids,
+                "product": product,
+            }
+        )
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+def get_watchlist(user_id: str, page: int = 1, page_size: int = 12) -> dict:
+    """The listings a user has saved (heart/watch icon), most recently
+    saved first — same item shape as browse_listings so the frontend can
+    reuse the same card component."""
+    from services.product_service import _first_image_url
+
+    db = get_supabase_client()
+
+    watch_res = (
+        db.table("listing_watchlist")
+        .select("listing_id, created_at")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    watch_rows = watch_res.data or []
+    total = len(watch_rows)
+    start = (page - 1) * page_size
+    page_watch_rows = watch_rows[start : start + page_size]
+    if not page_watch_rows:
+        return {"items": [], "total": total, "page": page, "page_size": page_size}
+
+    listing_ids = [w["listing_id"] for w in page_watch_rows]
+    listings_res = (
+        db.table("listings")
+        .select(
+            "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
+            "final_price, status, products(id, name, brand, images, price, product_type), "
+            "bids(id, bidder_id, amount, created_at)"
+        )
+        .in_("id", listing_ids)
+        .order("created_at", foreign_table="bids")
+        .execute()
+    )
+    listings_by_id = {r["id"]: r for r in (listings_res.data or [])}
+
+    items = []
+    for w in page_watch_rows:
+        r = listings_by_id.get(w["listing_id"])
+        if not r:
+            continue  # listing was deleted since it was saved
+        auction_service.sync_auction_status(db, r, bids=r.get("bids") or [])
+
+        p = r.get("products")
+        product = None
+        if p:
+            product = {
+                "id": p["id"],
+                "name": p["name"],
+                "brand": p.get("brand"),
+                "product_type": p.get("product_type"),
+                "price": p.get("price"),
+                "image_url": _first_image_url(p.get("images")),
+            }
+        items.append(
+            {
+                "id": r["id"],
+                "variant_size": r.get("variant_size"),
+                "condition_grade": r.get("condition_grade"),
+                "bid_price": r.get("final_price") if r.get("auction_status") == "sold" else auction_service.current_price(r),
+                "auction_start_at": r.get("auction_start_at"),
+                "auction_status": r.get("auction_status"),
+                "close_deadline": auction_service.next_close_deadline(r),
+                "bid_count": len(r.get("_bids") or []),
+                "is_watching": True,
                 "product": product,
             }
         )
@@ -543,12 +628,14 @@ def get_related_listings(viewer_id: str, listing_id: str, limit: int = 4) -> lis
             lambda: db.table("listings")
             .select(
                 "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
-                "status, seller_id, products(id, name, brand, images, price, product_type)"
+                "status, seller_id, products(id, name, brand, images, price, product_type), "
+                "bids(id, bidder_id, amount, created_at)"
             )
             .eq("status", "accepted")
             .neq("id", listing_id)
             .neq("seller_id", viewer_id)
             .not_.is_("auction_start_at", "null")
+            .order("created_at", foreign_table="bids")
             .execute()
         )
         res = source_future.result()
@@ -560,9 +647,8 @@ def get_related_listings(viewer_id: str, listing_id: str, limit: int = 4) -> lis
     category = (source.get("products") or {}).get("product_type")
 
     rows = candidates_res.data or []
-    bids_by_listing = auction_service.batch_fetch_bids(db, [r["id"] for r in rows])
     for r in rows:
-        auction_service.sync_auction_status(db, r, bids=bids_by_listing.get(r["id"], []))
+        auction_service.sync_auction_status(db, r, bids=r.get("bids") or [])
     rows = [r for r in rows if r.get("auction_status") in ("live", "scheduled")]
 
     # Prefer same seller first, then same category, to surface a coherent

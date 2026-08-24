@@ -66,6 +66,7 @@ export type BrowseListing = {
   auction_status: AuctionStatus | null;
   close_deadline: string | null;
   bid_count: number;
+  is_watching: boolean;
   product: BrowseProductSummary | null;
 };
 
