@@ -58,7 +58,7 @@ def build_live_listing_row(seller_id: str, product: dict) -> dict:
         "seller_id": seller_id,
         "product_id": product["id"],
         "condition_grade": random.choice(CONDITION_GRADES),
-        "condition_notes": "Seeded live demo listing.",
+        "condition_notes": "Great condition, no visible flaws.",
         "base_price": price,
         "bid_price": bid_price,
         "status": "accepted",

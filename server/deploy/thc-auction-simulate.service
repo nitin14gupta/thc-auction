@@ -1,5 +1,5 @@
 [Unit]
-Description=HYPE Auction fake-activity simulator (bot users/listings/bids)
+Description=HYPE Auction activity simulator (users/listings/bids)
 After=network.target thc-auction-api.service
 
 [Service]

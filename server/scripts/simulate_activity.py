@@ -1,23 +1,24 @@
-"""Fake-activity bot: makes the site look alive by growing the user base,
-topping up the live/upcoming listing pool, and driving real bids through the
-HTTP API. Meant to run on a schedule (every 15 minutes in production, via the
-systemd timer in deploy/thc-auction-simulate.timer).
+"""Fake-activity generator: makes the site look alive by growing the user
+base, topping up the live/upcoming listing pool, and driving real bids
+through the HTTP API. Meant to run on a schedule (every 15 minutes in
+production, via the systemd timer in deploy/thc-auction-simulate.timer).
 
 What it does each run:
-  1. Registers a handful of new "bot" users directly in the DB (cheap, no
-     need to hit /auth/register — same convention as seed_demo_listings.py).
+  1. Registers a handful of new users directly in the DB with real-looking
+     Indian names (cheap, no need to hit /auth/register — same convention as
+     seed_demo_listings.py).
   2. Tops up the pool of accepted listings (live + upcoming) toward a target
-     range by creating new listings for random bot sellers on random
-     products, split between "starts now" (live) and "starts later"
-     (upcoming) — again written straight to the DB, matching the existing
-     seed scripts. This intentionally skips photos/submit/review: those
-     endpoints are exercised for real by actual sellers, this script's job
-     is to keep the browse pages populated.
+     range by creating new listings for random sellers on random products,
+     split between "starts now" (live) and "starts later" (upcoming) — again
+     written straight to the DB, matching the existing seed scripts. This
+     intentionally skips photos/submit/review: those endpoints are exercised
+     for real by actual sellers, this script's job is to keep the browse
+     pages populated.
   3. Places real bids through the live HTTP API (GET .../auction then POST
      .../bids, exactly what the browser does), using short-lived JWTs minted
-     in-process for a handful of bot bidders per listing. This is the part
-     that actually exercises the auction business logic (min bid, soft
-     close, winner/order creation) end to end.
+     in-process for a handful of bidders per listing. This is the part that
+     actually exercises the auction business logic (min bid, soft close,
+     winner/order creation) end to end.
 
 Usage (from server/, with the venv active):
     python scripts/simulate_activity.py
@@ -25,7 +26,7 @@ Usage (from server/, with the venv active):
 
 Configuration is via environment variables (all optional, sane defaults):
     SIMULATE_API_BASE_URL        default: http://127.0.0.1:8000
-    SIMULATE_MAX_BOT_USERS       default: 400
+    SIMULATE_MAX_USERS           default: 400
     SIMULATE_NEW_USERS_MIN/MAX   default: 4 / 5
     SIMULATE_TARGET_LIVE_MIN/MAX default: 100 / 200
     SIMULATE_MAX_NEW_LISTINGS    default: 20   (cap per run, so growth is gradual)
@@ -54,9 +55,35 @@ from services.listing_service import get_suggested_bid_prices  # noqa: E402
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 log = logging.getLogger("simulate_activity")
 
-BOT_EMAIL_DOMAIN = "hype.bot"
-BOT_PASSWORD = "BotTraffic123!"
+# Reserved for testing (RFC 2606) — never routes real mail, and the local
+# part below reads as an ordinary signup, not a giveaway.
+USER_EMAIL_DOMAIN = "members.hype.test"
+USER_PASSWORD = "HypeMember123!"
 CONDITION_GRADES = ("DS", "VNDS", "USED", "BEAT")
+CONDITION_NOTE_OPTIONS = (
+    "Kept in the original box, worn a handful of times.",
+    "Great condition, no visible flaws.",
+    "Barely worn, stored carefully.",
+    "Minor signs of wear, nothing major.",
+    "Still looks fresh, taken care of well.",
+    "",  # some listings just don't have notes
+)
+
+FIRST_NAMES = (
+    "Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan",
+    "Krishna", "Ishaan", "Rohan", "Karan", "Aryan", "Dhruv", "Kabir", "Rudra",
+    "Yash", "Aditi", "Ananya", "Diya", "Ishita", "Kavya", "Meera", "Myra",
+    "Navya", "Pari", "Riya", "Saanvi", "Sara", "Tara", "Vanya", "Zara",
+    "Priya", "Neha", "Pooja", "Sneha", "Anjali", "Divya", "Kritika", "Nikita",
+    "Rahul", "Amit", "Vikram", "Rajesh", "Suresh", "Manish", "Deepak", "Gaurav",
+    "Sanjay", "Anil", "Varun", "Nikhil", "Siddharth", "Abhishek", "Harsh", "Kunal",
+)
+LAST_NAMES = (
+    "Sharma", "Verma", "Gupta", "Kumar", "Singh", "Patel", "Shah", "Mehta",
+    "Reddy", "Rao", "Nair", "Iyer", "Menon", "Pillai", "Chawla", "Malhotra",
+    "Kapoor", "Khanna", "Bhatia", "Chopra", "Agarwal", "Bansal", "Jain", "Saxena",
+    "Mishra", "Pandey", "Tiwari", "Yadav", "Chauhan", "Rathore", "Joshi", "Desai",
+)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -65,7 +92,7 @@ def _env_int(name: str, default: int) -> int:
 
 
 API_BASE_URL = os.getenv("SIMULATE_API_BASE_URL", "http://127.0.0.1:8000")
-MAX_BOT_USERS = _env_int("SIMULATE_MAX_BOT_USERS", 400)
+MAX_USERS = _env_int("SIMULATE_MAX_USERS", 400)
 NEW_USERS_MIN = _env_int("SIMULATE_NEW_USERS_MIN", 4)
 NEW_USERS_MAX = _env_int("SIMULATE_NEW_USERS_MAX", 5)
 TARGET_LIVE_MIN = _env_int("SIMULATE_TARGET_LIVE_MIN", 100)
@@ -82,40 +109,42 @@ def _now() -> datetime:
 
 
 # ---------------------------------------------------------------------------
-# 1. Grow the bot user pool
+# 1. Grow the user pool
 # ---------------------------------------------------------------------------
-def get_bot_users(db) -> list[dict]:
-    res = db.table("users").select("id, name, email").like("email", f"%@{BOT_EMAIL_DOMAIN}").execute()
+def get_generated_users(db) -> list[dict]:
+    res = db.table("users").select("id, name, email").like("email", f"%@{USER_EMAIL_DOMAIN}").execute()
     return res.data or []
 
 
-def create_bot_users(db, existing: list[dict], dry_run: bool) -> list[dict]:
-    if len(existing) >= MAX_BOT_USERS:
-        log.info("Bot pool already at cap (%d), skipping new user creation.", len(existing))
+def create_new_users(db, existing: list[dict], dry_run: bool) -> list[dict]:
+    if len(existing) >= MAX_USERS:
+        log.info("User pool already at cap (%d), skipping new user creation.", len(existing))
         return []
 
-    count = min(random.randint(NEW_USERS_MIN, NEW_USERS_MAX), MAX_BOT_USERS - len(existing))
+    count = min(random.randint(NEW_USERS_MIN, NEW_USERS_MAX), MAX_USERS - len(existing))
     existing_emails = {u["email"] for u in existing}
-    next_index = len(existing) + 1
 
     rows = []
     while len(rows) < count:
-        email = f"bot{next_index:05d}@{BOT_EMAIL_DOMAIN}"
-        next_index += 1
+        first = random.choice(FIRST_NAMES)
+        last = random.choice(LAST_NAMES)
+        suffix = random.randint(100, 9999)
+        email = f"{first.lower()}.{last.lower()}{suffix}@{USER_EMAIL_DOMAIN}"
         if email in existing_emails:
             continue
+        existing_emails.add(email)
         rows.append({
-            "name": f"Bot Buyer {next_index - 1:05d}",
+            "name": f"{first} {last}",
             "email": email,
-            "password_hash": hash_password(BOT_PASSWORD),
+            "password_hash": hash_password(USER_PASSWORD),
         })
 
     if dry_run:
-        log.info("[dry-run] Would create %d bot users.", len(rows))
+        log.info("[dry-run] Would create %d users.", len(rows))
         return []
 
     inserted = db.table("users").insert(rows).execute().data or [] if rows else []
-    log.info("Created %d new bot users (pool now ~%d).", len(inserted), len(existing) + len(inserted))
+    log.info("Created %d new users (pool now ~%d).", len(inserted), len(existing) + len(inserted))
     return inserted
 
 
@@ -151,7 +180,7 @@ def build_listing_row(seller_id: str, product: dict, live: bool) -> dict:
         "seller_id": seller_id,
         "product_id": product["id"],
         "condition_grade": random.choice(CONDITION_GRADES),
-        "condition_notes": "Auto-generated listing.",
+        "condition_notes": random.choice(CONDITION_NOTE_OPTIONS) or None,
         "base_price": price,
         "bid_price": bid_price,
         "status": "accepted",
@@ -162,9 +191,9 @@ def build_listing_row(seller_id: str, product: dict, live: bool) -> dict:
     }
 
 
-def top_up_listings(db, bot_users: list[dict], dry_run: bool) -> int:
-    if not bot_users:
-        log.warning("No bot users available yet, skipping listing top-up.")
+def top_up_listings(db, users: list[dict], dry_run: bool) -> int:
+    if not users:
+        log.warning("No users available yet, skipping listing top-up.")
         return 0
 
     active = count_active_listings(db)
@@ -184,7 +213,7 @@ def top_up_listings(db, bot_users: list[dict], dry_run: bool) -> int:
 
     rows = []
     for product in products:
-        seller = random.choice(bot_users)
+        seller = random.choice(users)
         live = random.random() < 0.5
         rows.append(build_listing_row(seller["id"], product, live))
 
@@ -201,7 +230,9 @@ def top_up_listings(db, bot_users: list[dict], dry_run: bool) -> int:
 # 3. Drive real bids through the HTTP API
 # ---------------------------------------------------------------------------
 def get_live_listings(db, limit: int) -> list[dict]:
-    cutoff = (_now() - timedelta(minutes=4)).isoformat()  # stay inside NO_BID_TIMEOUT
+    # Auctions stay biddable for up to NO_BID_TIMEOUT (7 days) with no bids —
+    # stay comfortably inside that window when picking candidates to bid on.
+    cutoff = (_now() - timedelta(days=6)).isoformat()
     res = (
         db.table("listings")
         .select("id, seller_id, auction_status")
@@ -259,9 +290,9 @@ def bid_on_listing(client: httpx.Client, listing: dict, bidders: list[dict], dry
     return placed
 
 
-def simulate_bidding(bot_users: list[dict], db, dry_run: bool) -> None:
-    if len(bot_users) < 2:
-        log.warning("Not enough bot users to bid with yet, skipping bidding.")
+def simulate_bidding(users: list[dict], db, dry_run: bool) -> None:
+    if len(users) < 2:
+        log.warning("Not enough users to bid with yet, skipping bidding.")
         return
 
     listings = get_live_listings(db, MAX_BID_LISTINGS)
@@ -272,7 +303,7 @@ def simulate_bidding(bot_users: list[dict], db, dry_run: bool) -> None:
     total_bids = 0
     with httpx.Client(base_url=API_BASE_URL, timeout=10.0) as client:
         for listing in listings:
-            bidders = random.sample(bot_users, k=min(9, len(bot_users)))
+            bidders = random.sample(users, k=min(9, len(users)))
             total_bids += bid_on_listing(client, listing, bidders, dry_run)
 
     log.info("Placed %d bids across %d live listings.", total_bids, len(listings))
@@ -280,19 +311,19 @@ def simulate_bidding(bot_users: list[dict], db, dry_run: bool) -> None:
 
 # ---------------------------------------------------------------------------
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Simulate site activity: bot users, listings, bids.")
+    parser = argparse.ArgumentParser(description="Simulate site activity: new users, listings, bids.")
     parser.add_argument("--dry-run", action="store_true", help="Log intended actions without writing/calling anything.")
     args = parser.parse_args()
 
     log.info("=== simulate_activity run starting (dry_run=%s, api=%s) ===", args.dry_run, API_BASE_URL)
     db = get_supabase_client()
 
-    existing_bots = get_bot_users(db)
-    new_bots = create_bot_users(db, existing_bots, args.dry_run)
-    all_bots = existing_bots + new_bots
+    existing_users = get_generated_users(db)
+    new_users = create_new_users(db, existing_users, args.dry_run)
+    all_users = existing_users + new_users
 
-    top_up_listings(db, all_bots, args.dry_run)
-    simulate_bidding(all_bots, db, args.dry_run)
+    top_up_listings(db, all_users, args.dry_run)
+    simulate_bidding(all_users, db, args.dry_run)
 
     log.info("=== simulate_activity run complete ===")
 

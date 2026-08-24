@@ -67,7 +67,7 @@ def build_listing_row(seller_id: str, product: dict, is_accepted: bool) -> dict:
         "seller_id": seller_id,
         "product_id": product["id"],
         "condition_grade": random.choice(CONDITION_GRADES),
-        "condition_notes": "Seeded demo listing.",
+        "condition_notes": "Great condition, no visible flaws.",
         "base_price": price,
         "bid_price": bid_price,
         "status": "accepted" if is_accepted else "rejected",

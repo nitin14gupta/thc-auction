@@ -16,8 +16,8 @@ changed. sold/unsold are terminal — once reached, never recomputed.
 
 from datetime import datetime, timedelta, timezone
 
-NO_BID_TIMEOUT = timedelta(minutes=5)
-SOFT_CLOSE = timedelta(seconds=30)
+NO_BID_TIMEOUT = timedelta(days=7)
+SOFT_CLOSE = timedelta(days=7)
 
 TERMINAL_STATUSES = ("sold", "unsold")
 

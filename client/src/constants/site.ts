@@ -39,22 +39,39 @@ export const marketMoves = [
   "Off-White Air Jordan 1 new bid ₹83,200",
 ] as const;
 
+// Every link here must point to a real, working route — no "#" placeholders
+// and no dead ends. Add the page first, then add the entry.
 export const footerColumns = [
   {
     heading: "Market",
-    links: ["Auctions", "Live", "Upcoming", "Sold", "Categories"],
+    links: [
+      { label: "Live Auctions", href: "/live" },
+      { label: "Upcoming", href: "/upcoming" },
+      { label: "Sold", href: "/sold" },
+    ],
   },
   {
     heading: "Sell",
-    links: ["Sell With Us", "How It Works", "Seller Guide", "Payouts"],
+    links: [
+      { label: "Sell With Us", href: "/sell-with-us" },
+      { label: "How It Works", href: "/how-it-works" },
+    ],
   },
   {
     heading: "Company",
-    links: ["About Us", "Careers", "Blog", "Press"],
+    links: [
+      { label: "About Us", href: "/about" },
+      { label: "Careers", href: "/careers" },
+    ],
   },
   {
     heading: "Support",
-    links: ["Help Center", "Contact Us", "Terms", "Privacy Policy"],
+    links: [
+      { label: "Help Center", href: "/help-center" },
+      { label: "Contact Us", href: "/contact" },
+      { label: "Terms", href: "/terms" },
+      { label: "Privacy Policy", href: "/privacy" },
+    ],
   },
 ] as const;
 

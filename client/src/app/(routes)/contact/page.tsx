@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -145,15 +146,15 @@ export default function ContactPage() {
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-14">
 
             {/* Image */}
-            <div className="hidden overflow-hidden rounded-xl lg:block">
-              <div className="flex h-full min-h-[520px] w-full items-center justify-center bg-tan">
-                <div className="flex flex-col items-center gap-3 text-ink-on-sand/40">
-                  <ImagePlaceholderIcon className="h-12 w-12" />
-                  <span className="font-[family-name:var(--font-barlow)] text-xs uppercase tracking-widest">
-                    Image
-                  </span>
-                </div>
-              </div>
+            <div className="relative hidden min-h-[520px] w-full overflow-hidden rounded-xl lg:block">
+              <Image
+                src="https://images.unsplash.com/photo-1615840287214-7ff58936c4cf?auto=format&fit=crop&w=1200&q=80"
+                alt="Customer support representative on a call"
+                fill
+                className="object-cover"
+                sizes="50vw"
+                unoptimized
+              />
             </div>
 
             {/* Form */}
@@ -390,16 +391,6 @@ function ChevronDownIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
       <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ImagePlaceholderIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
-      <path d="m3 15 5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

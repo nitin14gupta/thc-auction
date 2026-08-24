@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -166,21 +167,25 @@ const DIFFERENTIATORS = [
     num: "01",
     title: "Live Auctions",
     body: "The market determines the true value through live bidding — not fixed seller pricing. Watch bids move in real time and win at a fair value.",
+    image: "https://images.unsplash.com/photo-1676181739859-08330dea8999?auto=format&fit=crop&w=900&q=80",
   },
   {
     num: "02",
     title: "End-to-End Logistics",
     body: "Our delivery partner handles every pickup and delivery. No direct contact between buyer and seller. Ever.",
+    image: "https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=900&q=80",
   },
   {
     num: "03",
     title: "Authentication on Every Item",
     body: "Every item passes through our authentication centre before it reaches you. If it fails, you get a full refund. No exceptions.",
+    image: "https://images.unsplash.com/photo-1589330694653-ded6df03f754?auto=format&fit=crop&w=900&q=80",
   },
   {
     num: "04",
     title: "Everything the Culture Wants",
     body: "Sneakers. Streetwear. Luxury. Collectibles. Art. Trading cards. If the culture wants it, it's on HYPE.",
+    image: "https://images.unsplash.com/photo-1669671943625-e20799ee5f42?auto=format&fit=crop&w=900&q=80",
   },
 ];
 
@@ -220,16 +225,16 @@ function DifferentiatorsSection() {
                 {item.num}
               </span>
 
-              {/* 16:9 image placeholder */}
-              <div className="w-full overflow-hidden rounded-lg">
-                <div className="flex aspect-video w-full items-center justify-center bg-sand transition-transform duration-[250ms] ease-out group-hover:scale-[1.03]">
-                  <div className="flex flex-col items-center gap-2 text-muted-on-sand/50">
-                    <ImagePlaceholderIcon className="h-8 w-8" />
-                    <span className="font-[family-name:var(--font-barlow)] text-[10px] uppercase tracking-widest">
-                      Image
-                    </span>
-                  </div>
-                </div>
+              {/* 16:9 image */}
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-sand">
+                <Image
+                  src={item.image}
+                  alt={item.title}
+                  fill
+                  className="object-cover transition-transform duration-[250ms] ease-out group-hover:scale-[1.03]"
+                  sizes="(max-width: 640px) 100vw, 50vw"
+                  unoptimized
+                />
               </div>
 
               {/* Title */}
@@ -303,22 +308,6 @@ export default function AboutPage() {
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-
-function ImagePlaceholderIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
-      <path
-        d="m3 15 5-5 4 4 3-3 6 6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function ArrowIcon({ className }: { className?: string }) {
   return (

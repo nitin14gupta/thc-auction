@@ -60,7 +60,14 @@ export function AuctionDetailView({ id, backHref, scope }: { id: string; backHre
               {(() => {
                 const imageUrl = detail.photos[0]?.url ?? detail.product?.image_url;
                 return imageUrl ? (
-                  <Image src={imageUrl} alt={detail.product?.name ?? ""} fill className="object-cover" unoptimized />
+                  <Image
+                    src={imageUrl}
+                    alt={detail.product?.name ?? ""}
+                    fill
+                    className="object-contain p-6"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    unoptimized
+                  />
                 ) : null;
               })()}
               {detail.auction_status && (
