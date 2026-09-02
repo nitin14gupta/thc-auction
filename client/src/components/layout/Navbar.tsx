@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { navLinks } from "@/constants/site";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -21,8 +22,11 @@ import { useAuth } from "@/hooks/useAuth";
 
 export function Navbar() {
   const { user, isAuthenticated } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     setIsMenuOpen(false);
@@ -39,13 +43,37 @@ export function Navbar() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isMenuOpen]);
 
+  // Slightly darkens/solidifies the header once the page has scrolled, so
+  // it stays legible over any hero content without looking like a hard cut.
+  useEffect(() => {
+    function onScroll() {
+      setIsScrolled(window.scrollY > 8);
+    }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  function runSearch(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = query.trim();
+    router.push(trimmed ? `/live?q=${encodeURIComponent(trimmed)}` : "/live");
+    setIsMenuOpen(false);
+  }
+
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-b from-ink/70 via-ink/40 to-transparent backdrop-blur-md">
+    <header
+      className={`sticky top-0 z-50 backdrop-blur-md transition-colors duration-300 ${
+        isScrolled
+          ? "bg-ink/90 border-b border-white/5"
+          : "border-b border-transparent bg-gradient-to-b from-ink/70 via-ink/40 to-transparent"
+      }`}
+    >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 md:px-8 lg:px-10">
         <div className="flex h-16 items-center sm:h-[72px]">
           <Link
             href="/"
-            className="shrink-0 font-[family-name:var(--font-barlow-condensed)] text-2xl font-bold tracking-tight text-paper"
+            className="shrink-0 font-[family-name:var(--font-barlow-condensed)] text-2xl font-bold tracking-tight text-paper transition-opacity hover:opacity-80"
           >
             HYPE.
           </Link>
@@ -53,20 +81,28 @@ export function Navbar() {
           <DesktopNav pathname={pathname} />
 
           <div className="ml-auto flex shrink-0 items-center gap-3">
-            <div className="hidden items-center gap-2 lg:flex lg:max-w-sm xl:max-w-md">
-              <div className="flex h-10 w-full items-center gap-2 rounded-[85px] border border-[#aaaaaa]/30 px-3">
-                <SearchIcon className="h-4 w-4 shrink-0 text-gray-on-dark" />
+            <form onSubmit={runSearch} className="hidden items-center gap-2 lg:flex lg:max-w-sm xl:max-w-md">
+              <div className="flex h-10 w-full items-center gap-2 rounded-[85px] border border-[#aaaaaa]/30 px-3 transition-colors focus-within:border-[#aaaaaa]/60">
+                <button
+                  type="submit"
+                  aria-label="Search"
+                  className="flex shrink-0 items-center justify-center text-gray-on-dark transition-colors hover:text-paper"
+                >
+                  <SearchIcon className="h-4 w-4" />
+                </button>
                 <input
                   type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search auctions, items..."
                   className="w-full bg-transparent font-[family-name:var(--font-barlow)] text-sm text-[#f9f0e9] placeholder:text-gray-on-dark focus:outline-none"
                 />
               </div>
-            </div>
+            </form>
 
             <Link
               href="/sell-with-us"
-              className="hidden h-9 items-center justify-center gap-2 rounded-[85px] bg-[#f9f0e9] px-5 text-sm font-semibold uppercase tracking-wide text-[#000000] transition-colors duration-200 hover:bg-[#f9f0e9]/80 lg:inline-flex"
+              className="hidden h-9 items-center justify-center gap-2 rounded-[85px] bg-[#f9f0e9] px-5 text-sm font-semibold uppercase tracking-wide text-[#000000] transition-all duration-200 hover:scale-[1.03] hover:bg-[#f9f0e9]/80 lg:inline-flex"
             >
               Sell With Us
             </Link>
@@ -74,7 +110,7 @@ export function Navbar() {
             <Link
               href={isAuthenticated ? "/dashboard" : "/login"}
               aria-label={isAuthenticated ? "Go to dashboard" : "Sign in"}
-              className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#f9f0e9] bg-[#f9f0e9] text-[#000000] transition-colors hover:border-[#f9f0e9]"
+              className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-[#f9f0e9] bg-[#f9f0e9] text-[#000000] transition-transform duration-200 hover:scale-105"
             >
               {isAuthenticated && user?.avatar_url ? (
                 <Image src={user.avatar_url} alt={user.name} fill className="object-cover" sizes="36px" unoptimized />
@@ -101,7 +137,9 @@ export function Navbar() {
         </div>
       </div>
 
-      {isMenuOpen && <MobileMenu pathname={pathname} onClose={() => setIsMenuOpen(false)} />}
+      {isMenuOpen && (
+        <MobileMenu pathname={pathname} query={query} setQuery={setQuery} onSearch={runSearch} onClose={() => setIsMenuOpen(false)} />
+      )}
     </header>
   );
 }
@@ -151,12 +189,16 @@ function DesktopNav({ pathname }: { pathname: string }) {
           <Link
             key={link.label}
             href={link.href}
-            className={`relative font-[family-name:var(--font-barlow)] text-sm font-medium uppercase tracking-wide transition-colors ${
+            className={`group relative py-1 font-[family-name:var(--font-barlow)] text-sm font-medium uppercase tracking-wide transition-colors ${
               isActive ? "text-paper" : "text-gray-on-dark hover:text-paper"
             }`}
           >
             {link.label}
-            {isActive && <span className="absolute -bottom-2 left-0 h-[2px] w-full bg-tan" />}
+            <span
+              className={`absolute -bottom-1 left-0 h-[2px] w-full origin-left bg-tan transition-transform duration-200 ease-out ${
+                isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+              }`}
+            />
           </Link>
         );
       })}
@@ -166,9 +208,26 @@ function DesktopNav({ pathname }: { pathname: string }) {
 
 // Full-screen solid overlay, only mounted while open — nothing sits in the
 // DOM (or repaints on scroll) when the menu is closed.
-function MobileMenu({ pathname, onClose }: { pathname: string; onClose: () => void }) {
+function MobileMenu({
+  pathname,
+  query,
+  setQuery,
+  onSearch,
+  onClose,
+}: {
+  pathname: string;
+  query: string;
+  setQuery: (value: string) => void;
+  onSearch: (e: FormEvent) => void;
+  onClose: () => void;
+}) {
   return (
-    <div id="mobile-nav-menu" role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex flex-col bg-ink lg:hidden">
+    <div
+      id="mobile-nav-menu"
+      role="dialog"
+      aria-modal="true"
+      className="animate-menu-in fixed inset-0 z-[100] flex flex-col bg-ink lg:hidden"
+    >
       <div className="flex h-16 shrink-0 items-center justify-between px-4 sm:h-[72px] sm:px-6">
         <span className="font-[family-name:var(--font-barlow-condensed)] text-2xl font-bold tracking-tight text-paper">
           HYPE.
@@ -184,24 +243,29 @@ function MobileMenu({ pathname, onClose }: { pathname: string; onClose: () => vo
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-8 sm:px-6">
-        <div className="mb-5 flex items-center gap-2 rounded-[85px] border border-[#aaaaaa]/30 px-3">
-          <SearchIcon className="h-4 w-4 shrink-0 text-gray-on-dark" />
+        <form onSubmit={onSearch} className="mb-5 flex items-center gap-2 rounded-[85px] border border-[#aaaaaa]/30 px-3">
+          <button type="submit" aria-label="Search" className="flex shrink-0 items-center justify-center text-gray-on-dark">
+            <SearchIcon className="h-4 w-4" />
+          </button>
           <input
             type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Search auctions, items..."
             className="h-11 w-full bg-transparent font-[family-name:var(--font-barlow)] text-sm text-[#f9f0e9] placeholder:text-gray-on-dark focus:outline-none"
           />
-        </div>
+        </form>
 
         <nav className="flex flex-col gap-1">
-          {navLinks.map((link) => {
+          {navLinks.map((link, i) => {
             const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
               <Link
                 key={link.label}
                 href={link.href}
                 onClick={onClose}
-                className={`rounded-md px-3 py-3 font-[family-name:var(--font-barlow)] text-base font-medium uppercase tracking-wide transition-colors ${
+                style={{ animationDelay: `${i * 30}ms` }}
+                className={`animate-menu-item-in rounded-md px-3 py-3 font-[family-name:var(--font-barlow)] text-base font-medium uppercase tracking-wide transition-colors ${
                   isActive ? "bg-white/5 text-paper" : "text-gray-on-dark hover:bg-white/5 hover:text-paper"
                 }`}
               >

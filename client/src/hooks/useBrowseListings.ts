@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { browseListings } from "@/api/listingApi";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -10,7 +11,8 @@ const PAGE_SIZE = 12;
 
 export function useBrowseListings(scope: AuctionScope) {
   const { authFetch } = useAuth();
-  const [query, setQueryRaw] = useState("");
+  const searchParams = useSearchParams();
+  const [query, setQueryRaw] = useState(() => searchParams.get("q") ?? "");
   const [category, setCategoryRaw] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const debouncedQuery = useDebounce(query, 300);
