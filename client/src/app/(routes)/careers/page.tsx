@@ -13,7 +13,7 @@ function HeroSection() {
     <section className="relative bg-[#0a0a0a] px-6 py-24 md:px-10 md:py-36 lg:py-48">
       <div
         className="absolute inset-0 bg-cover bg-center opacity-40"
-        style={{ backgroundImage: "url(/images/about-hero.png)" }}
+        style={{ backgroundImage: "url(/images/about-hero.webp)" }}
       />
       <div className="relative z-10">
         <p className="font-[family-name:var(--font-barlow)] text-sm font-semibold uppercase tracking-[0.2em] text-gray-on-dark">
