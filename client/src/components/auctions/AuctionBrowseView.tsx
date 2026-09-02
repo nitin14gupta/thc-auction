@@ -485,7 +485,7 @@ export function AuctionBrowseView({
             {error ? (
               <p className="mt-8 font-[family-name:var(--font-barlow)] text-sm text-red-urgent">{error}</p>
             ) : isLoading ? (
-              <div className={view === "grid" ? "grid grid-cols-3 gap-3 sm:gap-4" : "flex flex-col gap-3"}>
+              <div className={view === "grid" ? "grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4" : "flex flex-col gap-3"}>
                 {Array.from({ length: 8 }).map((_, i) => (
                   <AuctionListingCardSkeleton key={i} />
                 ))}
@@ -495,7 +495,7 @@ export function AuctionBrowseView({
             ) : sorted.length === 0 ? (
               <EmptyAuctionState title={EMPTY_COPY[scope].title} body={EMPTY_COPY[scope].body} />
             ) : view === "grid" ? (
-              <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                 {sorted.map((listing) => (
                   <AuctionListingCard key={listing.id} listing={listing} scope={scope} />
                 ))}

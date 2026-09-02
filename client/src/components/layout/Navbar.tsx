@@ -7,38 +7,29 @@ import { usePathname } from "next/navigation";
 import { navLinks } from "@/constants/site";
 import { useAuth } from "@/hooks/useAuth";
 
-// NOTE: deliberately does not touch Lenis (see SmoothScroll provider). Calling
-// lenis.stop() while its touch listeners stay attached is what caused the
-// mobile menu to freeze the whole page to touch input — the RAF loop that
-// would apply scroll position was paused, but Lenis kept intercepting
-// touchmove, so nothing responded until the menu was closed again. Locking
-// scroll with plain CSS on <html>/<body> avoids that entirely.
+// Two things made the old mobile menu feel "hung":
+//   1. It called lenis.stop()/start() — Lenis keeps its touch listeners
+//      attached even when stopped, so touch input got captured and dropped
+//      instead of doing anything, which reads as a frozen page.
+//   2. Its panel used backdrop-blur-md across almost the full viewport
+//      height. backdrop-filter is notoriously expensive to repaint on
+//      mid/low-range Android GPUs — over a large area it drops frames badly
+//      enough to feel like a hang, especially while scrolling the panel.
+// This version never touches Lenis, and the mobile overlay is a solid color
+// (no blur) rendered only while open — nothing expensive sits in the DOM
+// when the menu is closed.
 
 export function Navbar() {
   const { user, isAuthenticated } = useAuth();
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Close the mobile menu whenever the route changes (link click, back/forward, etc.)
   useEffect(() => {
     setIsMenuOpen(false);
   }, [pathname]);
 
-  // Lock background scroll while the mobile menu is open.
-  useEffect(() => {
-    if (!isMenuOpen) return;
-    const html = document.documentElement;
-    const prevHtmlOverflow = html.style.overflow;
-    const prevBodyOverflow = document.body.style.overflow;
-    html.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    return () => {
-      html.style.overflow = prevHtmlOverflow;
-      document.body.style.overflow = prevBodyOverflow;
-    };
-  }, [isMenuOpen]);
+  useScrollLock(isMenuOpen);
 
-  // Close on Escape
   useEffect(() => {
     if (!isMenuOpen) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -110,18 +101,45 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Backdrop */}
-      {isMenuOpen && (
-        <div
-          className="fixed inset-0 top-16 z-40 bg-black/40 lg:hidden sm:top-[72px]"
-          onClick={() => setIsMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      <MobileMenu isOpen={isMenuOpen} pathname={pathname} onClose={() => setIsMenuOpen(false)} />
+      {isMenuOpen && <MobileMenu pathname={pathname} onClose={() => setIsMenuOpen(false)} />}
     </header>
   );
+}
+
+// Locks background scroll for the duration the mobile menu is open, the
+// iOS-safe way: plain `overflow: hidden` alone does NOT reliably stop touch
+// scroll in Safari on iOS. Pinning the body with `position: fixed` at its
+// current scroll offset does, and restoring scrollTo on close puts the page
+// back exactly where it was.
+function useScrollLock(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    };
+
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+
+    return () => {
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.left = prev.left;
+      body.style.right = prev.right;
+      body.style.width = prev.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, [active]);
 }
 
 function DesktopNav({ pathname }: { pathname: string }) {
@@ -146,21 +164,32 @@ function DesktopNav({ pathname }: { pathname: string }) {
   );
 }
 
-function MobileMenu({ isOpen, pathname, onClose }: { isOpen: boolean; pathname: string; onClose: () => void }) {
+// Full-screen solid overlay, only mounted while open — nothing sits in the
+// DOM (or repaints on scroll) when the menu is closed.
+function MobileMenu({ pathname, onClose }: { pathname: string; onClose: () => void }) {
   return (
-    <div
-      id="mobile-nav-menu"
-      className={`fixed inset-x-0 top-16 z-50 max-h-[calc(100svh-4rem)] origin-top overflow-y-auto border-t border-white/10 bg-ink/95 pb-6 pt-4 backdrop-blur-md transition-all duration-200 sm:top-[72px] sm:max-h-[calc(100svh-72px)] lg:hidden ${
-        isOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-2 opacity-0"
-      }`}
-    >
-      <div className="mx-auto max-w-screen-2xl px-4 sm:px-6">
-        <div className="mb-4 flex items-center gap-2 rounded-[85px] border border-[#aaaaaa]/30 px-3">
+    <div id="mobile-nav-menu" role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex flex-col bg-ink lg:hidden">
+      <div className="flex h-16 shrink-0 items-center justify-between px-4 sm:h-[72px] sm:px-6">
+        <span className="font-[family-name:var(--font-barlow-condensed)] text-2xl font-bold tracking-tight text-paper">
+          HYPE.
+        </span>
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center text-paper"
+        >
+          <CloseIcon className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-8 sm:px-6">
+        <div className="mb-5 flex items-center gap-2 rounded-[85px] border border-[#aaaaaa]/30 px-3">
           <SearchIcon className="h-4 w-4 shrink-0 text-gray-on-dark" />
           <input
             type="text"
             placeholder="Search auctions, items..."
-            className="h-10 w-full bg-transparent font-[family-name:var(--font-barlow)] text-sm text-[#f9f0e9] placeholder:text-gray-on-dark focus:outline-none"
+            className="h-11 w-full bg-transparent font-[family-name:var(--font-barlow)] text-sm text-[#f9f0e9] placeholder:text-gray-on-dark focus:outline-none"
           />
         </div>
 
@@ -172,7 +201,7 @@ function MobileMenu({ isOpen, pathname, onClose }: { isOpen: boolean; pathname: 
                 key={link.label}
                 href={link.href}
                 onClick={onClose}
-                className={`rounded-md px-3 py-2.5 font-[family-name:var(--font-barlow)] text-sm font-medium uppercase tracking-wide transition-colors ${
+                className={`rounded-md px-3 py-3 font-[family-name:var(--font-barlow)] text-base font-medium uppercase tracking-wide transition-colors ${
                   isActive ? "bg-white/5 text-paper" : "text-gray-on-dark hover:bg-white/5 hover:text-paper"
                 }`}
               >
@@ -183,7 +212,7 @@ function MobileMenu({ isOpen, pathname, onClose }: { isOpen: boolean; pathname: 
           <Link
             href="/sell-with-us"
             onClick={onClose}
-            className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[85px] bg-[#f9f0e9] text-sm font-semibold uppercase tracking-wide text-[#000000] transition-colors duration-200 hover:bg-[#f9f0e9]/80"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[85px] bg-[#f9f0e9] text-sm font-semibold uppercase tracking-wide text-[#000000] transition-colors duration-200 hover:bg-[#f9f0e9]/80"
           >
             Sell With Us
           </Link>
