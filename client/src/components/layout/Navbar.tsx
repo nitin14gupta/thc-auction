@@ -70,9 +70,7 @@ export function Navbar() {
   return (
     <header
       className={`sticky top-0 z-50 backdrop-blur-md transition-colors duration-300 ${
-        isScrolled
-          ? "bg-ink/90 border-b border-white/5"
-          : "border-b border-transparent bg-gradient-to-b from-ink/70 via-ink/40 to-transparent"
+        isScrolled ? "bg-ink/90" : "bg-gradient-to-b from-ink/70 via-ink/40 to-transparent"
       }`}
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 md:px-8 lg:px-10">
