@@ -14,6 +14,7 @@ read (get_listing, browse, auction detail, place_bid) and persisted if it
 changed. sold/unsold are terminal — once reached, never recomputed.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 NO_BID_TIMEOUT = timedelta(days=7)
@@ -57,6 +58,13 @@ def _fetch_bids(db, listing_id: str) -> list[dict]:
 
 
 BATCH_FETCH_CHUNK_SIZE = 100
+# PostgREST caps rows returned per request (commonly ~1000) regardless of how
+# many actually match — a single popular listing can have more bids than
+# that on its own. Without paging within a chunk too, a chunk whose combined
+# bid rows exceed the cap comes back silently truncated (no error, just
+# missing rows), which previously undercounted bid totals for any high-
+# volume listing sharing a chunk. Same page size used for both axes.
+_ROWS_PER_PAGE = BATCH_FETCH_CHUNK_SIZE
 
 
 def batch_fetch_bids(db, listing_ids: list[str]) -> dict[str, list[dict]]:
@@ -72,17 +80,80 @@ def batch_fetch_bids(db, listing_ids: list[str]) -> dict[str, list[dict]]:
 
     for i in range(0, len(listing_ids), BATCH_FETCH_CHUNK_SIZE):
         chunk = listing_ids[i : i + BATCH_FETCH_CHUNK_SIZE]
-        res = (
-            db.table("bids")
-            .select("id, bidder_id, amount, created_at, listing_id")
-            .in_("listing_id", chunk)
-            .order("created_at")
-            .execute()
-        )
-        for bid in res.data or []:
-            by_listing.setdefault(bid["listing_id"], []).append(bid)
+        offset = 0
+        while True:
+            res = (
+                db.table("bids")
+                .select("id, bidder_id, amount, created_at, listing_id")
+                .in_("listing_id", chunk)
+                .order("created_at")
+                .range(offset, offset + _ROWS_PER_PAGE - 1)
+                .execute()
+            )
+            page = res.data or []
+            for bid in page:
+                by_listing.setdefault(bid["listing_id"], []).append(bid)
+            if len(page) < _ROWS_PER_PAGE:
+                break
+            offset += _ROWS_PER_PAGE
 
     return by_listing
+
+
+_COUNT_MAX_WORKERS = 10
+
+
+def batch_count_bids(db, listing_ids: list[str]) -> dict[str, int]:
+    """Bid *counts* for a page of listings (browse_listings' display, not the
+    price/status logic) — deliberately not batch_fetch_bids. A single popular
+    listing here can have hundreds of bids, and browse only ever needs a
+    number, not the rows, so pulling full histories for a whole page of those
+    is pure waste (seconds of wasted transfer for a "412 bids" label). Each
+    count is a HEAD request (Content-Range header only, no body) fired
+    concurrently — count queries don't batch via IN() the way row fetches do,
+    since PostgREST's count is for the whole filtered set, not grouped per id."""
+    if not listing_ids:
+        return {}
+
+    def _count(listing_id: str) -> tuple[str, int]:
+        res = db.table("bids").select("id", count="exact", head=True).eq("listing_id", listing_id).execute()
+        return listing_id, res.count or 0
+
+    with ThreadPoolExecutor(max_workers=min(_COUNT_MAX_WORKERS, len(listing_ids))) as pool:
+        return dict(pool.map(_count, listing_ids))
+
+
+def sweep_pending_auctions() -> int:
+    """Proactively syncs every not-yet-terminal, already-started listing on a
+    timer (see main.py's startup task) instead of only ever finding out a
+    listing is overdue to close when someone happens to browse Live and pays
+    for examining the whole backlog synchronously — including the
+    order-creation + winner email side effects sync_auction_status fires on
+    a sold transition, which then block that person's page load. Returns the
+    number of listings checked, for logging."""
+    from db.config import get_supabase_client
+
+    db = get_supabase_client()
+    res = (
+        db.table("listings")
+        .select("id, status, auction_start_at, auction_status, winner_id, final_price")
+        .eq("status", "accepted")
+        .not_.is_("auction_start_at", "null")
+        .lte("auction_start_at", datetime.now(timezone.utc).isoformat())
+        .or_(f"auction_status.is.null,auction_status.not.in.({','.join(TERMINAL_STATUSES)})")
+        .execute()
+    )
+    listings = res.data or []
+    if not listings:
+        return 0
+
+    bids_by_listing = batch_fetch_bids(db, [listing["id"] for listing in listings])
+    for listing in listings:
+        try:
+            sync_auction_status(db, listing, bids=bids_by_listing.get(listing["id"], []))
+        except Exception:
+            pass  # one bad listing shouldn't stop the rest of the sweep
+    return len(listings)
 
 
 def sync_auction_status(db, listing: dict, bids: list[dict] | None = None) -> dict:

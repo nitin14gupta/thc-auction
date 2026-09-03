@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -33,10 +34,26 @@ def get_user_by_email(email: str) -> dict | None:
     return res.data[0] if res.data else None
 
 
+_USER_CACHE_TTL_SECONDS = 30
+_user_cache: dict[str, tuple[dict, float]] = {}
+
+
 def get_user_by_id(user_id: str) -> dict | None:
+    now = time.monotonic()
+    cached = _user_cache.get(user_id)
+    if cached and cached[1] > now:
+        return cached[0]
+
     db = get_supabase_client()
     res = db.table("users").select("*").eq("id", user_id).limit(1).execute()
-    return res.data[0] if res.data else None
+    user = res.data[0] if res.data else None
+    if user is not None:
+        _user_cache[user_id] = (user, now + _USER_CACHE_TTL_SECONDS)
+    return user
+
+
+def _invalidate_user_cache(user_id: str) -> None:
+    _user_cache.pop(user_id, None)
 
 
 def is_seller_verified(user_id: str) -> bool:
@@ -157,6 +174,7 @@ def update_avatar(user_id: str, raw_bytes: bytes) -> dict:
     db.table("users").update({"avatar_url": upload_result["url"], "updated_at": _now().isoformat()}).eq(
         "id", user_id
     ).execute()
+    _invalidate_user_cache(user_id)
     return get_user_by_id(user_id)
 
 
@@ -225,6 +243,7 @@ def reset_password(reset_token: str, new_password: str) -> None:
     db.table("users").update(
         {"password_hash": hash_password(new_password), "updated_at": _now().isoformat()}
     ).eq("id", user_id).execute()
+    _invalidate_user_cache(user_id)
 
     # Reset password -> log out every existing session for safety.
     db.table("refresh_tokens").update({"revoked": True}).eq("user_id", user_id).execute()

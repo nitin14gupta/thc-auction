@@ -27,13 +27,31 @@ async def _order_sweep_loop() -> None:
         await asyncio.sleep(SWEEP_INTERVAL_SECONDS)
 
 
+async def _auction_sweep_loop() -> None:
+    from services.auction_service import sweep_pending_auctions
+
+    while True:
+        try:
+            await asyncio.to_thread(sweep_pending_auctions)
+        except Exception:
+            pass  # A failed sweep just means the next one (60s later) picks up where it left off.
+        await asyncio.sleep(SWEEP_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Payment reminders/expiry need to fire even if nobody has a page open
     # that happens to read the affected order — see order_service.sweep_pending_orders.
-    task = asyncio.create_task(_order_sweep_loop())
+    order_task = asyncio.create_task(_order_sweep_loop())
+    # Auctions past their close time need to flip to sold/unsold even if
+    # nobody browses Live — see auction_service.sweep_pending_auctions. This
+    # also keeps that endpoint fast: it no longer has to examine (and
+    # potentially close, with the order/email side effects that triggers) a
+    # backlog of overdue listings on someone's page load.
+    auction_task = asyncio.create_task(_auction_sweep_loop())
     yield
-    task.cancel()
+    order_task.cancel()
+    auction_task.cancel()
 
 
 app = FastAPI(title="HYPE. API", version="1.0.0", lifespan=lifespan)

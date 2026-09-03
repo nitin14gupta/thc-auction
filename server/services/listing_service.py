@@ -174,19 +174,43 @@ def browse_listings(
     from services.product_service import _first_image_url
 
     db = get_supabase_client()
-    target_status = {"live": "live", "upcoming": "scheduled", "sold": "sold"}[scope]
 
-    query = (
-        db.table("listings")
-        .select(
-            "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
-            "final_price, status, seller_id, products(id, name, brand, images, price, product_type), "
-            "bids(id, bidder_id, amount, created_at)"
-        )
-        .eq("status", "accepted")
-        .not_.is_("auction_start_at", "null")
-        .order("created_at", foreign_table="bids")
+    base_columns = (
+        "id, variant_size, condition_grade, bid_price, auction_start_at, auction_status, "
+        "final_price, status, seller_id, products(id, name, brand, images, price, product_type)"
     )
+    latest_bid_columns = "bids(id, bidder_id, amount, created_at)"
+
+    needs_sync = scope == "live"
+    if scope == "upcoming":
+        query = (
+            db.table("listings")
+            .select(base_columns)
+            .eq("status", "accepted")
+            .not_.is_("auction_start_at", "null")
+            .gt("auction_start_at", _now())
+        )
+    elif scope == "sold":
+        # final_price already holds the winning amount and status is
+        # terminal/trustworthy — sold listings don't need bids at all here.
+        query = (
+            db.table("listings")
+            .select(base_columns)
+            .eq("status", "accepted")
+            .eq("auction_status", "sold")
+        )
+    else:
+        query = (
+            db.table("listings")
+            .select(f"{base_columns}, {latest_bid_columns}")
+            .eq("status", "accepted")
+            .not_.is_("auction_start_at", "null")
+            .lte("auction_start_at", _now())
+            .or_(f"auction_status.is.null,auction_status.not.in.({','.join(auction_service.TERMINAL_STATUSES)})")
+            .order("created_at", foreign_table="bids", desc=True)
+            .limit(1, foreign_table="bids")
+        )
+
     if scope != "sold" and exclude_user_id:
         # Sold listings are a public record — no reason to hide a seller's own
         # sales from them, unlike live/upcoming where bidding on your own item
@@ -196,9 +220,15 @@ def browse_listings(
     res = query.execute()
     rows = res.data or []
 
-    for r in rows:
-        auction_service.sync_auction_status(db, r, bids=r.get("bids") or [])
-    rows = [r for r in rows if r.get("auction_status") == target_status]
+    if needs_sync:
+        for r in rows:
+            auction_service.sync_auction_status(db, r, bids=r.get("bids") or [])
+        rows = [r for r in rows if r.get("auction_status") == "live"]
+    else:
+        for r in rows:
+            r["_bids"] = []
+            if scope == "upcoming":
+                r["auction_status"] = r.get("auction_status") or "scheduled"
 
     if category:
         rows = [r for r in rows if (r.get("products") or {}).get("product_type") == category]
@@ -227,6 +257,14 @@ def browse_listings(
         )
         watched_ids = {w["listing_id"] for w in (watch_res.data or [])}
 
+    # bid_count needs an accurate total, unlike current_price/close_deadline
+    # above — but only for the page actually being returned, and only the
+    # count (not the rows themselves — some listings here have hundreds of
+    # bids and browse cards only ever show a number).
+    bid_counts: dict[str, int] = {}
+    if scope != "upcoming" and page_rows:
+        bid_counts = auction_service.batch_count_bids(db, [r["id"] for r in page_rows])
+
     items = []
     for r in page_rows:
         p = r.get("products")
@@ -249,7 +287,7 @@ def browse_listings(
                 "auction_start_at": r.get("auction_start_at"),
                 "auction_status": r.get("auction_status"),
                 "close_deadline": auction_service.next_close_deadline(r),
-                "bid_count": len(r.get("_bids") or []),
+                "bid_count": bid_counts.get(r["id"], 0),
                 "is_watching": r["id"] in watched_ids,
                 "product": product,
             }
