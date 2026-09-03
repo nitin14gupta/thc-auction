@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -27,6 +28,11 @@ export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [query, setQuery] = useState("");
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     setIsMenuOpen(false);
@@ -137,9 +143,16 @@ export function Navbar() {
         </div>
       </div>
 
-      {isMenuOpen && (
-        <MobileMenu pathname={pathname} query={query} setQuery={setQuery} onSearch={runSearch} onClose={() => setIsMenuOpen(false)} />
-      )}
+      {/* Portaled to <body>: the header's backdrop-blur makes it a containing
+          block for `position: fixed` descendants (a CSS filter/backdrop-filter
+          side effect), so a fixed full-screen menu nested inside it would be
+          sized against the header's own box instead of the viewport. */}
+      {isMenuOpen &&
+        isMounted &&
+        createPortal(
+          <MobileMenu pathname={pathname} query={query} setQuery={setQuery} onSearch={runSearch} onClose={() => setIsMenuOpen(false)} />,
+          document.body
+        )}
     </header>
   );
 }
